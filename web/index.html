@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PlanCraft</title>
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="#/" title="All projects">
+    <img src="icon.svg" alt="" width="22" height="22">
+    <span>PlanCraft</span>
+  </a>
+  <div class="crumb" id="crumb"></div>
+  <div class="spacer"></div>
+  <div class="top-actions" id="topActions" hidden>
+    <button class="btn ghost" id="btnUndo" title="Undo (Ctrl+Z)"></button>
+    <button class="btn ghost" id="btnRedo" title="Redo (Ctrl+Y)"></button>
+    <span class="sep"></span>
+    <button class="btn" id="btnAddPlans" title="Add PDF or image plans to this project"></button>
+    <button class="btn primary" id="btnExport" title="Download the takeoff summary as Excel"></button>
+    <button class="btn ghost icon-only" id="btnHelp" title="Keyboard shortcuts (?)"></button>
+  </div>
+  <span class="save-state" id="saveState"></span>
+</header>
+
+<main id="home" class="home" hidden>
+  <div class="home-inner">
+    <div class="home-head">
+      <div>
+        <h1>Projects</h1>
+        <p class="muted">Takeoffs are saved on this computer as you work.</p>
+      </div>
+      <div class="home-actions">
+        <button class="btn" id="btnImportJob"></button>
+        <button class="btn" id="btnNewFromPdf"></button>
+        <button class="btn primary" id="btnNewProject"></button>
+      </div>
+    </div>
+    <div id="projectList" class="project-list"></div>
+    <p class="drop-hint muted">Tip: drop a .SwiftJob or PDF anywhere on this page.</p>
+  </div>
+</main>
+
+<main id="workspace" class="workspace" hidden>
+  <aside class="side left" id="leftSide">
+    <section class="panel pages-panel" id="pagesPanel">
+      <div class="panel-head">
+        <h2>Pages <span class="count" id="pageCount"></span></h2>
+        <button class="btn ghost small icon-only" id="btnAddPages" title="Add plans"></button>
+      </div>
+      <div class="panel-tools">
+        <input type="search" id="pageFilter" placeholder="Filter pages" aria-label="Filter pages">
+      </div>
+      <div class="list" id="pageList" tabindex="0" aria-label="Pages"></div>
+    </section>
+    <div class="hsplit" id="splitPages" title="Drag to resize"></div>
+    <section class="panel takeoff-panel">
+      <div class="panel-head">
+        <h2>Takeoff</h2>
+        <div class="seg" id="qtyScope" role="group" aria-label="Quantities shown">
+          <button data-scope="all" class="on" title="Show every item with totals across all pages">All pages</button>
+          <button data-scope="page" title="Show only the items with takeoff on the open page">This page</button>
+        </div>
+      </div>
+      <div class="panel-tools new-items">
+        <button class="btn small" data-new="linear" title="New linear item (lengths)"></button>
+        <button class="btn small" data-new="area" title="New area item"></button>
+        <button class="btn small" data-new="count" title="New count item"></button>
+        <button class="btn small icon-only" data-new="folder" title="New folder"></button>
+      </div>
+      <div class="panel-tools">
+        <input type="search" id="treeFilter" placeholder="Search items" aria-label="Search items">
+      </div>
+      <div class="list tree" id="tree" tabindex="0" role="tree" aria-label="Takeoff items"></div>
+    </section>
+  </aside>
+  <div class="vsplit" id="splitLeft" title="Drag to resize"></div>
+
+  <section class="center">
+    <div class="toolbar" id="toolbar">
+      <div class="tool-group" role="group" aria-label="Tools">
+        <button class="tool" data-tool="select" title="Select and edit (V)"></button>
+        <button class="tool" data-tool="takeoff" title="Take off the selected item (T)"></button>
+        <button class="tool" data-tool="measure" title="Measure a distance (M)"></button>
+        <button class="tool" data-tool="scale" title="Set the page scale from a known length (K)"></button>
+        <button class="tool" data-tool="crop" title="Crop an area into a new page (C)"></button>
+      </div>
+      <span class="sep"></span>
+      <div class="tool-group">
+        <button class="toggle" id="tgOrtho" title="Ortho: straight horizontal/vertical runs (O, or hold Shift)"></button>
+        <button class="toggle" id="tgSnap" title="Snap to existing points (S)"></button>
+        <button class="toggle" id="tgDeduct" title="Deduct: next area is a cut-out (D)"></button>
+        <button class="toggle" id="tgLabels" title="Show item names on the plan (L)"></button>
+      </div>
+      <div class="spacer"></div>
+      <div class="tool-group">
+        <button class="tool" id="btnPrevPage" title="Previous page (Page Up)"></button>
+        <button class="tool" id="btnNextPage" title="Next page (Page Down)"></button>
+        <span class="sep"></span>
+        <button class="tool" id="btnZoomOut" title="Zoom out (-)"></button>
+        <button class="zoom-label" id="zoomLabel" title="Fit page (F)">100%</button>
+        <button class="tool" id="btnZoomIn" title="Zoom in (+)"></button>
+        <button class="tool" id="btnFit" title="Fit page (F)"></button>
+      </div>
+    </div>
+    <div class="banner" id="banner" hidden></div>
+    <div class="canvas-host" id="canvasHost">
+      <canvas id="canvas"></canvas>
+      <div class="empty" id="emptyState" hidden></div>
+    </div>
+    <footer class="statusbar">
+      <span id="stHint"></span>
+      <span class="spacer"></span>
+      <span id="stLive"></span>
+      <span id="stScale"></span>
+    </footer>
+  </section>
+
+  <div class="vsplit" id="splitRight" title="Drag to resize"></div>
+  <aside class="side right" id="props"></aside>
+</main>
+
+<div id="menu" class="menu" hidden role="menu"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
+<input type="file" id="filePicker" hidden>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
