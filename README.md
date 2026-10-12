@@ -76,3 +76,9 @@ or set the allowance per item.
 ## License
 
 MIT. See [LICENSE](LICENSE). You are free to use, change and share PlanCraft, including for work.
+
+## Disclaimer
+
+PlanCraft is an independent project. It is not affiliated with, endorsed by, or sponsored by PlanSwift or its owners. "PlanSwift" is a trademark of its respective owner and is mentioned here only to describe compatibility with `.SwiftJob` files.
+
+PlanCraft is provided "as is", without warranty of any kind (see [LICENSE](LICENSE)). Always check quantities before using them in an estimate, bid or order.
