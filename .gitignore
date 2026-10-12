@@ -1,0 +1,5 @@
+# Your projects (plans, takeoffs, backups) stay on this computer
+data/
+
+__pycache__/
+*.pyc

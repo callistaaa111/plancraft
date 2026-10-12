@@ -1,0 +1,50 @@
+// Inline stroke icons (24-unit grid, drawn at 16px). Use icon('name').
+
+const P = {
+  select: '<path d="M5 3l14 7-6 2-2 6z"/>',
+  takeoff: '<path d="M4 18l5-8 4 4 7-9"/><circle cx="4" cy="18" r="1.6"/><circle cx="20" cy="5" r="1.6"/>',
+  measure: '<path d="M3 15l12-12 6 6-12 12z"/><path d="M7 11l2 2M10 8l2 2M13 5l2 2"/>',
+  scale: '<path d="M4 20h16M4 16v8M20 16v8"/><path d="M12 4v10M8 8l4-4 4 4"/>',
+  linear: '<path d="M4 18l5-8 4 4 7-9"/>',
+  area: '<path d="M5 7l9-3 6 8-4 8-11-3z"/>',
+  count: '<circle cx="7" cy="8" r="2.3"/><circle cx="16" cy="7" r="2.3"/><circle cx="11" cy="16" r="2.3"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  folderPlus: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 10v6M9 13h6"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  eyeOff: '<path d="M3 3l18 18"/><path d="M10.6 5.1A10 10 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3 3.6M6.2 6.3C3.6 8 2 12 2 12s4 7 10 7a9.6 9.6 0 0 0 4.4-1"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/>',
+  redo: '<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/>',
+  fit: '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>',
+  zoomIn: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3M11 8v6M8 11h6"/>',
+  zoomOut: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.3-4.3M8 11h6"/>',
+  ortho: '<path d="M5 4v15h15"/><path d="M9 15V8M9 15h7"/>',
+  snap: '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
+  deduct: '<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M8 12h8"/>',
+  label: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
+  download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
+  chevron: '<path d="M9 6l6 6-6 6"/>',
+  left: '<path d="M15 6l-6 6 6 6"/>',
+  right: '<path d="M9 6l6 6-6 6"/>',
+  more: '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+  x: '<path d="M6 6l12 12M18 6L6 18"/>',
+  warn: '<path d="M12 4l9 16H3z"/><path d="M12 10v4M12 17v.5"/>',
+  check: '<path d="M5 12l5 5 9-10"/>',
+  page: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/>',
+  job: '<path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/>',
+  pdf: '<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4M9 13h6M9 17h4"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17v.4"/>',
+  rename: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
+  paste: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  excel: '<path d="M5 3h10l4 4v14H5z"/><path d="M8 11l5 6M13 11l-5 6"/>',
+};
+
+export function icon(name, cls = 'i') {
+  return `<svg class="${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${P[name] || ''}</svg>`;
+}
+
+export const TYPE_ICON = { linear: 'linear', area: 'area', count: 'count' };
