@@ -22,6 +22,9 @@ const P = {
   ortho: '<path d="M5 4v15h15"/><path d="M9 15V8M9 15h7"/>',
   snap: '<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   deduct: '<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M8 12h8"/>',
+  focus: '<circle cx="12" cy="12" r="3.2"/><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4"/>',
+  caret: '<path d="M8 10l4 4 4-4"/>',
+  panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/>',
   label: '<path d="M4 7V5h16v2M12 5v14M9 19h6"/>',
   upload: '<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
   download: '<path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/>',
@@ -47,6 +50,7 @@ const P = {
   align: '<circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
   marks: '<path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
+  printer: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="1.5"/><path d="M6 14h12v7H6z"/>',
   excel: '<path d="M5 3h10l4 4v14H5z"/><path d="M8 11l5 6M13 11l-5 6"/>',
 };
 

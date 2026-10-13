@@ -43,7 +43,7 @@ function setScale(page, which, make) {
 export async function calibrateDialog(page, pxDist) {
   const units = S.project.units;
   const lenInput = h('input', { type: 'number', min: '0', step: 'any', placeholder: 'e.g. 6' });
-  const unitSel = h('select', null, Object.keys(M.LENGTH_UNITS).map(u => h('option', { value: u, selected: u === (units === 'imperial' ? 'ft' : 'm') }, u)));
+  const unitSel = h('select', null, Object.keys(M.LENGTH_UNITS).map(u => h('option', { value: u, selected: u === M.unitKey(units) }, u)));
   const apply = applyField(page);
   const preview = h('div', { class: 'note' });
   const update = () => {
@@ -87,7 +87,7 @@ export async function calibrateDialog(page, pxDist) {
 export async function scaleDialog(pageId, { onCalibrate } = {}) {
   const page = pageById(pageId);
   if (!page) return;
-  const imperial = S.project.units === 'imperial';
+  const imperial = M.unitInfo(S.project.units).imperial;
   const options = [];
   if (page.dpi) {
     for (const r of M.METRIC_RATIOS) options.push({ key: `r${r}`, label: `1:${r}`, make: p => (p.dpi ? M.ratioScale(p.dpi, r) : null) });

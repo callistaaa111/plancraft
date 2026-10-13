@@ -18,7 +18,7 @@ function insertPage(page, afterId) {
 /** rect = {x, y, w, h} in page pixels. Resolves true when a page was made. */
 export async function cropToNewPage(page, rect) {
   const units = S.project.units;
-  const u = M.UNITS[units];
+  const u = M.unitInfo(units);
   const wm = M.lengthOf(rect.w, page, units), hm = M.lengthOf(rect.h, page, units);
   const name = h('input', { type: 'text', value: `${page.name} (crop)` });
   const ok = await modal({

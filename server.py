@@ -161,7 +161,7 @@ class Api(BaseHTTPRequestHandler):
             if method == "POST":
                 body = self.read_json()
                 name = (body.get("name") or "").strip() or "Untitled"
-                return self.send_json(st.create(name, body.get("units") or "metric"), 201)
+                return self.send_json(st.create(name, body.get("units") or "m"), 201)
 
         if parts[:2] == ["import", "swiftjob"] and method == "POST":
             tmp = self.read_to_temp(".SwiftJob")
@@ -204,6 +204,22 @@ class Api(BaseHTTPRequestHandler):
                 return self.send_json(st.backups(pid))
             if rest == ["restore"] and method == "POST":
                 return self.send_json(st.restore(pid, self.read_json().get("name")))
+            if rest == ["print"] and method == "POST":              # build a PDF of plan pages (background job)
+                import printpdf
+                opts = self.read_json()
+                project = st.load(pid)
+                folder = st.project_dir(pid) / "exports"
+                folder.mkdir(exist_ok=True)
+                printpdf.clean_exports(folder)
+                name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "plans")[:60]
+                out = folder / f"{name} - {time.strftime('%Y%m%d-%H%M%S')}.pdf"
+                task = tasks.start("print", printpdf.build, project, st.project_dir(pid), opts, out)
+                return self.send_json({"task": task.id}, 202)
+            if rest[:1] == ["exports"] and len(rest) == 2 and method == "GET":
+                f = st.project_dir(pid) / "exports" / rest[1]
+                if not re.fullmatch(r'[^\\/:*?"<>|]{1,120}\.pdf', rest[1]) or not f.is_file():
+                    raise KeyError(rest[1])
+                return self.send_file(f, cache="no-store", download_name=rest[1] if q.get("download") else None)
             if rest == ["thumb.jpg"] and method == "GET":
                 return self.send_file(st.thumbnail(pid), cache="no-cache")
             if rest == ["pages", "crop"] and method == "POST":     # new page from an area of a page
@@ -232,6 +248,7 @@ class Api(BaseHTTPRequestHandler):
                 dpi = max(72.0, min(400.0, float(q.get("dpi") or 200)))
                 tmp = self.read_to_temp(".pdf")
                 task = tasks.start("pdf", importers.import_pdf, tmp, out, filename, dpi, q.get("pages"),
+                                   st.project_dir(pid) / "sources",
                                    cleanup=lambda: tmp.unlink(missing_ok=True))
                 return self.send_json({"task": task.id}, 202)
             if rest == ["import", "image"] and method == "POST":
@@ -280,7 +297,8 @@ def cli_import(args, store: Store):
     project = store.create(args.name or f.stem)
     pid = project["id"]
     if ext == ".pdf":
-        res = importers.import_pdf(_ConsoleTask(), f, store.pages_dir(pid), f.name, args.dpi)
+        res = importers.import_pdf(_ConsoleTask(), f, store.pages_dir(pid), f.name, args.dpi,
+                                   sources_dir=store.project_dir(pid) / "sources")
     else:
         res = importers.import_image(_ConsoleTask(), f, store.pages_dir(pid), f.name)
     project["pages"] = res["pages"]

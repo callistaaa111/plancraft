@@ -7,7 +7,7 @@ import * as api from './api.js';
 import * as M from './measure.js';
 import { $, $$, h, isTyping, download, pickFiles, clamp } from './util.js';
 import { icon } from './icons.js';
-import { modal, progressBox, toast, promptText, closeMenu } from './dialogs.js';
+import { modal, progressBox, toast, promptText, openMenu, closeMenu } from './dialogs.js';
 import { Viewer } from './viewer.js';
 import { initTree, addNode } from './tree.js';
 import { initPages, openPage } from './pages.js';
@@ -17,6 +17,7 @@ import { scaleDialog, calibrateDialog, confirmAutoScale } from './scale.js';
 import { cropToNewPage, copyPage, pastePage } from './pageops.js';
 import { initMarkup } from './markup.js';
 import { openMaterials } from './materials.js';
+import { openPrint } from './printdialog.js';
 import { getDraft, dropDraft, sameContent } from './recovery.js';
 import { initAutoCount } from './autocount.js';
 import { initCompare } from './compare.js';
@@ -35,12 +36,12 @@ const TOOLS = {
 };
 for (const b of $$('#toolbar [data-tool]')) {
   const [ic, label] = TOOLS[b.dataset.tool];
-  b.innerHTML = `${icon(ic)}<span class="lbl">${label}</span>`;
-  b.addEventListener('click', () => chooseTool(b.dataset.tool));
+  b.innerHTML = `${icon(ic)}<span class="lbl">${label}</span>${b.classList.contains('has-menu') ? icon('caret') : ''}`;
+  b.addEventListener('click', () => (b.dataset.tool === 'takeoff' ? takeoffMenu() : chooseTool(b.dataset.tool)));
 }
 const TOGGLES = {
   tgOrtho: ['ortho', 'Ortho', 'ortho'], tgSnap: ['snap', 'Snap', 'snap'], tgDeduct: ['deduct', 'Deduct', 'deduct'],
-  tgLabels: ['label', 'Labels', 'labels'], tgMarks: ['marks', '', 'showMarks'],
+  tgLabels: ['label', 'Labels', 'labels'], tgFocus: ['focus', 'Focus', 'focus'], tgProps: ['panel', '', 'showProps'], tgMarks: ['marks', '', 'showMarks'],
 };
 for (const [id, [ic, label, key]] of Object.entries(TOGGLES)) {
   const b = $(`#${id}`);
@@ -56,6 +57,7 @@ setBtn('#btnRedo', 'redo', '');
 setBtn('#btnAddPlans', 'upload', 'Add plans');
 setBtn('#btnMaterials', 'tag', 'Materials');
 setBtn('#btnExport', 'excel', 'Export Excel');
+setBtn('#btnPrint', 'printer', 'Print / PDF');
 setBtn('#btnHelp', 'help', '');
 setBtn('#btnAddPages', 'plus', '');
 setBtn('#btnPrevPage', 'left', '');
@@ -78,6 +80,18 @@ $('#btnAddPlans').onclick = () => addPlans();
 $('#btnMaterials').onclick = () => openMaterials();
 $('#btnAddPages').onclick = () => addPlans();
 $('#btnExport').onclick = () => exportExcel();
+$('#btnPrint').onclick = () => printPlans();
+
+/** What is on screen now (page pixels), for printing just that part. */
+function viewArea() {
+  const page = currentPage();
+  if (!page) return null;
+  const [W, H] = viewer.pageSize(page);
+  const a = viewer.toImg(0, 0), b = viewer.toImg(viewer.w, viewer.h);
+  const x0 = Math.max(0, a[0]), y0 = Math.max(0, a[1]), x1 = Math.min(W, b[0]), y1 = Math.min(H, b[1]);
+  return x1 > x0 && y1 > y0 ? { page: page.id, rect: [x0, y0, x1 - x0, y1 - y0] } : null;
+}
+const printPlans = () => openPrint({ viewArea });
 $('#btnHelp').onclick = () => showHelp();
 $('#btnPrevPage').onclick = () => stepPage(-1);
 $('#btnNextPage').onclick = () => stepPage(1);
@@ -96,17 +110,36 @@ for (const b of $$('#qtyScope button')) {
   });
 }
 
+/** The Takeoff button: carry on with the selected item, or start a new one of the chosen kind. */
+function takeoffMenu() {
+  if (!S.project) return;
+  const r = $('#toolbar [data-tool="takeoff"]').getBoundingClientRect();
+  const it = selectedItem();
+  openMenu(r.left, r.bottom + 4, [
+    it && { label: `Continue: ${it.name}`, icon: it.type, kbd: 'T', action: () => chooseTool('takeoff') },
+    it && 'sep',
+    { label: 'New linear item...', icon: 'linear', action: () => addNode('linear') },
+    { label: 'New area item...', icon: 'area', action: () => addNode('area') },
+    { label: 'New count item...', icon: 'count', action: () => addNode('count') },
+  ]);
+}
+
 function chooseTool(tool) {
   if (!S.project) return;
   if (['scale', 'crop', 'autocount', 'note', 'highlight'].includes(tool) && !currentPage()) return;
   if (tool === 'autocount' && selectedItem()?.type !== 'count') toast('Auto count: select a count item first, then drag a box around one symbol.');
   if (tool === 'crop') toast('Drag a box around the area you want as a new page.');
-  if (tool === 'takeoff' && !selectedItem()) toast('Select an item in the Takeoff list (or create one), then click on the plan.');
+  if (tool === 'takeoff' && !selectedItem()) toast('Select an item in the Takeoff list (or start one from the Takeoff button), then click on the plan.');
   setTool(tool);
 }
 
 function toggle(key) {
   S[key] = !S[key];
+  if (key === 'showProps') {
+    $('#workspace').classList.toggle('no-props', !S.showProps);
+    try { localStorage.setItem('plancraft.props', S.showProps ? '1' : '0'); } catch { /* storage unavailable */ }
+  }
+  if (key === 'focus') { try { localStorage.setItem('plancraft.focus', S.focus ? '1' : '0'); } catch { /* storage unavailable */ } }
   if (key === 'showMarks' && !S.showMarks && (S.tool === 'note' || S.tool === 'highlight')) setTool('select');
   if (key === 'deduct' && S.deduct && selectedItem()?.type !== 'area') toast('Deduct applies to area items: the next area you draw becomes a cut-out.');
   updateToolbar();
@@ -313,6 +346,7 @@ splitter($('#splitPages'), e => {
   ws.style.setProperty('--pages-h', `${clamp(e.clientY - r.top, 90, r.height - 160)}px`);
 });
 loadLayout();
+ws.classList.toggle('no-props', !S.showProps);
 
 // ---- screens & routing -------------------------------------------------------------------------------
 function showView(v) {
@@ -380,10 +414,10 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 // ---- projects, imports, export -----------------------------------------------------------------------
 async function newProject() {
   const name = h('input', { type: 'text', placeholder: 'e.g. 2F office lighting' });
-  const units = h('select', null, h('option', { value: 'metric' }, 'Metric (m, m², m³)'), h('option', { value: 'imperial' }, 'Imperial (ft, ft², yd³)'));
+  const units = h('select', null, M.UNIT_KEYS.map(k => h('option', { value: k }, M.unitLabel(k))));
   const ok = await modal({
     title: 'New project',
-    body: [h('div', { class: 'field' }, h('label', null, 'Project name'), name), h('div', { class: 'field' }, h('label', null, 'Units'), units)],
+    body: [h('div', { class: 'field' }, h('label', null, 'Project name'), name), h('div', { class: 'field' }, h('label', null, 'Measure takeoff in'), units)],
     buttons: [{ label: 'Cancel', value: null }, { label: 'Create', value: true, primary: true }],
     validate: () => (name.value.trim() ? null : 'Give the project a name.'),
   });
@@ -398,7 +432,7 @@ async function newFromFiles(files) {
   const plans = files.filter(f => !/\.swiftjob$/i.test(f.name));
   if (!plans.length) return;
   try {
-    const p = await api.createProject(plans[0].name.replace(/\.[^.]+$/, ''), 'metric');
+    const p = await api.createProject(plans[0].name.replace(/\.[^.]+$/, ''), 'm');
     await openProject(p.id);
     history.replaceState(null, '', `#/p/${enc(p.id)}`);
     await addPlans(plans);
@@ -526,11 +560,11 @@ function showHelp() {
     ['Click', 'Add a point (or a marker for counts)'], ['Double-click, Enter, right-click', 'Finish the run / area / count'],
     ['Backspace', 'Remove the last point while drawing'], ['Esc', 'Cancel drawing / clear selection'],
     ['Shift (hold) or O', 'Ortho: straight horizontal / vertical'], ['S', 'Snap to existing points (hold Ctrl to skip)'],
-    ['D', 'Deduct: next area is a cut-out'], ['L', 'Show names on the plan'],
+    ['D', 'Deduct: next area is a cut-out'], ['L', 'Show names on the plan'], ['G', 'Focus: fade other takeoff while an item is selected'], ['P', 'Show or hide the properties panel'],
     ['Scroll', 'Zoom at the cursor'], ['Hold right button and drag', 'Pan (works while drawing, too)'], ['Middle-drag, Space+drag, drag empty space', 'Pan'], ['F', 'Fit the page'], ['+ / -', 'Zoom in / out'],
     ['Page Up / Page Down', 'Previous / next page'],
     ['Del', 'Delete the selected section (or marker)'], ['Alt+click a point', 'Remove that point'], ['Double-click a line', 'Insert a point (Select tool)'],
-    ['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['F2', 'Rename the selected item (in the list)'], ['Ctrl+S', 'Save now (it also saves by itself)'],
+    ['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+P', 'Print / export the plans as PDF'], ['F2', 'Rename the selected item (in the list)'], ['Ctrl+S', 'Save now (it also saves by itself)'],
   ];
   modal({
     title: 'Keyboard and mouse',
@@ -552,6 +586,7 @@ document.addEventListener('keydown', e => {
     if (lk === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
     else if (lk === 'y' || (lk === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
     else if (lk === 's') { e.preventDefault(); flushSave().then(() => toast('Saved.')).catch(err => toast(err.message, 'error')); }
+    else if (lk === 'p') { e.preventDefault(); printPlans(); }
     else if (lk === 'c' && !window.getSelection()?.toString() && S.pageId) { e.preventDefault(); copyPage(S.pageId); }
     else if (lk === 'v') { e.preventDefault(); pastePage(); }
     return;
@@ -561,9 +596,9 @@ document.addEventListener('keydown', e => {
   if (k === 'Shift') { viewer.shift = true; viewer.updateCursorPt(e); viewer.render(); return; }
   if (viewer.handleKey(e)) { e.preventDefault(); return; }
   const map = {
-    v: () => chooseTool('select'), t: () => chooseTool('takeoff'), m: () => chooseTool('measure'), k: () => chooseTool('scale'), c: () => chooseTool('crop'),
+    v: () => chooseTool('select'), t: () => (selectedItem() ? chooseTool('takeoff') : takeoffMenu()), m: () => chooseTool('measure'), k: () => chooseTool('scale'), c: () => chooseTool('crop'),
     a: () => chooseTool('autocount'), n: () => chooseTool('note'), h: () => chooseTool('highlight'),
-    o: () => toggle('ortho'), s: () => toggle('snap'), d: () => toggle('deduct'), l: () => toggle('labels'),
+    o: () => toggle('ortho'), s: () => toggle('snap'), d: () => toggle('deduct'), l: () => toggle('labels'), g: () => toggle('focus'), p: () => toggle('showProps'),
     f: () => viewer.fit(), '+': () => viewer.zoomAt(1.25), '=': () => viewer.zoomAt(1.25), '-': () => viewer.zoomAt(0.8),
     pageup: () => stepPage(-1), pagedown: () => stepPage(1), '?': showHelp,
   };

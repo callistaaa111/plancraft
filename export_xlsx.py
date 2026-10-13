@@ -11,7 +11,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 import pricing
-from measure import item_quantities
+from measure import item_quantities, unit_info
 
 THIN = Side(style="thin", color="000000")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
@@ -56,7 +56,7 @@ def _fmt(v):
 
 
 def build(project: dict) -> bytes:
-    units = project.get("units") or "metric"
+    units = project.get("units") or "m"
     pages = {p["id"]: p for p in project.get("pages") or []}
     page_order = {p["id"]: i for i, p in enumerate(project.get("pages") or [])}
     rows = []
@@ -69,7 +69,7 @@ def build(project: dict) -> bytes:
     # ---- Summary ------------------------------------------------------------------------------------
     ws = wb.active
     ws.title = "Summary"
-    _title(ws, project, f"Takeoff summary  ·  units: {units}  ·  exported {stamp}")
+    _title(ws, project, f"Takeoff summary  ·  measured in {unit_info(units)['len']}  ·  exported {stamp}")
     head = ["FOLDER", "ITEM", "TYPE", "DESCRIPTION", "SPEC", "QTY", "UNIT", "ALLOW %", "QTY + ALLOW", "NOTES"]
     _header(ws, 4, head, [22, 30, 8, 26, 26, 12, 7, 9, 12, 46])
     r = 5

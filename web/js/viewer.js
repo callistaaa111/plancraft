@@ -12,6 +12,12 @@ const MAX_SCALE = 16;
 const SNAP_PX = 10;
 const HIT_PX = 6;
 const HANDLE_PX = 7;
+// selection highlight: highlighter band for the selected item (blue for the selected section), dark edge, pulse
+const HL_ITEM = 'rgba(255, 196, 0, .42)';
+const HL_SECTION = 'rgba(31, 90, 224, .38)';
+const HL_EDGE = 'rgba(17, 17, 17, .7)';
+const PULSE_MS = 500;
+const FADE_OTHERS = 0.45;
 const CACHE_PAGES = 3;
 
 const r2 = v => Math.round(v * 100) / 100;
@@ -97,7 +103,13 @@ export class Viewer {
     on('page', () => this.showPage());
     on('change', () => { if (this.shownPage !== S.pageId || !pageById(this.shownPage)) this.showPage(); this.render(); });
     on('live', () => this.render());
-    on('select', () => this.render());
+    on('select', () => {
+      // a short pulse when another item gets selected, so the eye finds it on a busy plan
+      const id = S.sel?.type === 'item' ? S.sel.id : null;
+      if (id && id !== this.pulseId) this.pulseAt = performance.now();
+      this.pulseId = id;
+      this.render();
+    });
     on('tool', () => { if (S.tool !== 'takeoff') this.countSec = null; this.draft = null; this.cropRect = null; this.ext.forEach(x => x.reset?.('tool')); this.canvas.style.cursor = ''; this.updateCursor(); this.render(); });
   }
 
@@ -271,6 +283,7 @@ export class Viewer {
 
     for (const x of this.ext) x.drawUnder?.(ctx, page);
     this.drawTakeoff(page);
+    if (this.pulse() > 0) this.render(); // keep animating until the pulse fades
     this.drawDraft(page);
     this.drawCrop(page);
     for (const x of this.ext) x.drawOver?.(ctx, page);
@@ -287,6 +300,24 @@ export class Viewer {
     return out;
   }
 
+  /** A cleared offscreen canvas the size of the view, with the same transform as the main one. */
+  fadeLayer() {
+    const main = this.ctx.canvas;
+    const c = this.fadeCanvas ||= document.createElement('canvas');
+    if (c.width !== main.width || c.height !== main.height) { c.width = main.width; c.height = main.height; }
+    const lctx = c.getContext('2d');
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.clearRect(0, 0, c.width, c.height);
+    lctx.setTransform(this.ctx.getTransform());
+    return lctx;
+  }
+
+  /** 1 right after an item is selected, easing to 0 over PULSE_MS. */
+  pulse() {
+    const t = this.pulseAt ? (performance.now() - this.pulseAt) / PULSE_MS : 1;
+    return t >= 1 ? 0 : (1 - t) ** 2;
+  }
+
   drawTakeoff(page) {
     const ctx = this.ctx;
     const vis = this.visibleSections(page);
@@ -294,13 +325,25 @@ export class Viewer {
     const secSel = S.secSel;
     const later = [];
     const order = ['area', 'linear', 'count'];
+    // Focus: other takeoff fades back while an item is selected. It is drawn on its own layer and faded as a whole,
+    // so runs that share a route do not stack back up to full strength.
+    const fade = selId && S.focus;
+    const lctx = fade ? this.fadeLayer() : ctx;
     for (const t of order) {
       for (const [it, sec] of vis[t]) {
         if (it.id === selId) { later.push([it, sec]); continue; }
-        this.drawSection(ctx, it, sec, false, false);
+        this.drawSection(lctx, it, sec, false, false);
       }
     }
-    for (const [it, sec] of later) this.drawSection(ctx, it, sec, true, secSel?.secId === sec.id);
+    if (fade) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = FADE_OTHERS;
+      ctx.drawImage(lctx.canvas, 0, 0);
+      ctx.restore();
+    }
+    const grow = this.pulse();
+    for (const [it, sec] of later) this.drawSection(ctx, it, sec, true, secSel?.secId === sec.id, grow);
     if (S.labels) {
       for (const t of ['area', 'linear']) for (const [it, sec] of vis[t]) this.drawSectionLabel(ctx, it, sec, page);
     }
@@ -339,10 +382,15 @@ export class Viewer {
     return p;
   }
 
-  drawSection(ctx, it, sec, selItem, selSec) {
+  /**
+   * Selected items get a highlighter band (yellow; blue for the selected section) and a dark edge, so they read on
+   * white plans and dark linework alike. grow (0..1) widens the band for the selection pulse.
+   */
+  drawSection(ctx, it, sec, selItem, selSec, grow = 0) {
     const pts = sec.points;
     const color = it.color || '#e6194b';
     const pr = it.props || {};
+    const band = selSec ? HL_SECTION : HL_ITEM;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     if (it.type === 'linear') {
@@ -350,8 +398,11 @@ export class Viewer {
       const lw = clamp(Number(pr.lineWidth) || 3, 1, 16);
       this.path(ctx, pts, false);
       if (selItem) {
-        ctx.strokeStyle = selSec ? 'rgba(31,90,224,.55)' : 'rgba(255,255,255,.95)';
-        ctx.lineWidth = lw + (selSec ? 7 : 5);
+        ctx.strokeStyle = band;
+        ctx.lineWidth = lw + 7 + grow * 8;
+        ctx.stroke();
+        ctx.strokeStyle = HL_EDGE;
+        ctx.lineWidth = lw + 2.5;
         ctx.stroke();
       }
       ctx.strokeStyle = color;
@@ -360,19 +411,23 @@ export class Viewer {
     } else if (it.type === 'area') {
       if (pts.length < 3) return;
       this.path(ctx, pts, true);
-      ctx.globalAlpha = clamp(Number(pr.opacity) || 0.3, 0.05, 0.9);
+      if (selItem) {
+        ctx.strokeStyle = band;
+        ctx.lineWidth = 7 + grow * 8;
+        ctx.stroke();
+      }
+      ctx.globalAlpha = clamp((Number(pr.opacity) || 0.3) + (selItem ? 0.08 : 0), 0.05, 0.9);
       ctx.fillStyle = sec.deduct ? this.hatch(color) : color;
       ctx.fill();
       ctx.globalAlpha = 1;
       if (selItem) {
-        ctx.strokeStyle = selSec ? 'rgba(31,90,224,.55)' : 'rgba(255,255,255,.95)';
-        ctx.lineWidth = selSec ? 7 : 5;
-        ctx.setLineDash([]);
+        ctx.strokeStyle = HL_EDGE;
+        ctx.lineWidth = 3.5;
         ctx.stroke();
       }
       ctx.setLineDash(sec.deduct ? [6, 4] : []);
       ctx.strokeStyle = color;
-      ctx.lineWidth = 1.8;
+      ctx.lineWidth = selItem ? 2.2 : 1.8;
       ctx.stroke();
       ctx.setLineDash([]);
     } else if (it.type === 'count') {
@@ -381,6 +436,12 @@ export class Viewer {
       for (let i = 0; i < pts.length; i++) {
         const [x, y] = this.toScr(pts[i]);
         if (x < -r * 2 || y < -r * 2 || x > this.w + r * 2 || y > this.h + r * 2) continue;
+        if (selItem) {
+          ctx.beginPath();
+          ctx.arc(x, y, r + 4 + grow * 5, 0, Math.PI * 2);
+          ctx.fillStyle = band;
+          ctx.fill();
+        }
         this.marker(ctx, pr.shape, x, y, r, color, selItem);
         if (selSec && (selPt === i || selPt == null)) {
           ctx.beginPath();
@@ -415,17 +476,17 @@ export class Viewer {
         break;
       case 'cross':
         ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r);
-        ctx.strokeStyle = '#fff'; ctx.lineWidth = r * 0.7 + 3; ctx.stroke();
+        ctx.strokeStyle = emphasise ? HL_EDGE : '#fff'; ctx.lineWidth = r * 0.7 + 3; ctx.stroke();
         ctx.strokeStyle = color; ctx.lineWidth = r * 0.7; ctx.stroke();
         return;
       default: ctx.arc(x, y, r, 0, Math.PI * 2);
     }
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = emphasise ? 1 : 0.85;
     ctx.fillStyle = color;
     ctx.fill();
     ctx.globalAlpha = 1;
     ctx.strokeStyle = emphasise ? '#111' : '#fff';
-    ctx.lineWidth = emphasise ? 2 : 1.5;
+    ctx.lineWidth = emphasise ? 2.5 : 1.5;
     ctx.stroke();
   }
 
@@ -476,8 +537,9 @@ export class Viewer {
     if (!at) return;
     const [x, y] = this.toScr(at);
     if (x < -50 || y < -20 || x > this.w + 50 || y > this.h + 20) return;
-    const u = M.UNITS[S.project.units];
-    let q = it.type === 'area' ? M.areaOf(M.polyArea(pts), page, S.project.units) : M.lengthOf(M.polyLength(pts), page, S.project.units);
+    const units = M.itemUnits(it, S.project.units);
+    const u = M.unitInfo(units);
+    let q = it.type === 'area' ? M.areaOf(M.polyArea(pts), page, units) : M.lengthOf(M.polyLength(pts), page, units);
     if (q != null && sec.deduct) q = -q;
     const qtxt = q == null ? '' : `  ${fmt(q)} ${it.type === 'area' ? u.area : u.len}`;
     this.label(ctx, `${it.name}${qtxt}`, x, y - 10, { align: 'center', border: it.color });
@@ -486,7 +548,7 @@ export class Viewer {
   drawDraft(page) {
     const ctx = this.ctx;
     const units = S.project.units;
-    const u = M.UNITS[units];
+    const u = M.unitInfo(units);
     if (this.measureDone && !this.draft) {
       const pts = this.measureDone.pts;
       this.path(ctx, pts, false);
@@ -576,7 +638,7 @@ export class Viewer {
     ctx.restore();
     const units = S.project.units;
     const wm = M.lengthOf(r.w, page, units), hm = M.lengthOf(r.h, page, units);
-    const text = wm != null ? `${fmt(wm)} x ${fmt(hm)} ${M.UNITS[units].len}` : `${Math.round(r.w)} x ${Math.round(r.h)} px`;
+    const text = wm != null ? `${fmt(wm)} x ${fmt(hm)} ${M.unitInfo(units).len}` : `${Math.round(r.w)} x ${Math.round(r.h)} px`;
     this.label(ctx, text, a[0], b[1] + 6, { bg: '#1f5ae0', fg: '#fff', border: '#1f5ae0' });
   }
 
@@ -588,8 +650,8 @@ export class Viewer {
   liveText(page) {
     const d = this.draft;
     if (!d || !d.pts.length) return '';
-    const units = S.project.units;
-    const u = M.UNITS[units];
+    const units = d.kind === 'takeoff' ? M.itemUnits(nodeById(d.itemId), S.project.units) : S.project.units;
+    const u = M.unitInfo(units);
     const cur = this.cursorPt;
     const pts = cur ? d.pts.concat([cur]) : d.pts;
     if (d.kind === 'scale') {
@@ -804,7 +866,7 @@ export class Viewer {
 
   takeoffDown(e, x, y) {
     const it = selectedItem();
-    if (!it) { toast('Select an item in the Takeoff list first, or create one with + Linear / + Area / + Count.'); return; }
+    if (!it) { toast('Select an item in the Takeoff list first, or start a new one from the Takeoff button.'); return; }
     if (ix().nodes.get(it.id)?.hidden) { toast(`"${it.name}" is hidden. Show it (eye icon) to take off.`); return; }
     const p = this.pointFor(x, y, e, it.type === 'count' ? undefined : this.draft?.pts[this.draft.pts.length - 1]);
     if (it.type === 'count') { this.addCount(it, p); return; }
@@ -1069,7 +1131,12 @@ export class Viewer {
         if (this.cropRect) { this.clearCrop(); return true; }
         if (this.cancelDraft()) return true;
         if (this.measureDone) { this.measureDone = null; this.render(); return true; }
-        if (S.secSel) { select(S.sel, null); return true; }
+        // one Esc drops the whole selection (item, folder or page, and any section), leaving the Takeoff tool too
+        if (S.sel || S.secSel) {
+          if (S.tool === 'takeoff') setTool('select');
+          select(null);
+          return true;
+        }
         if (S.tool !== 'select') { setTool('select'); return true; }
         return false;
       case 'Enter':

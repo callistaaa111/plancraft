@@ -63,7 +63,7 @@ def item_parts(item: dict, q: dict, assembly: dict | None, materials: dict) -> l
 
 def costing(project: dict) -> dict:
     """Bill of materials and costs for the whole project."""
-    units = project.get("units") or "metric"
+    units = project.get("units") or "m"
     pages = {p["id"]: p for p in project.get("pages") or []}
     materials = {m["id"]: m for m in project.get("materials") or []}
     assemblies = {a["id"]: a for a in project.get("assemblies") or []}

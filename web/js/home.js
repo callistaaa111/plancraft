@@ -6,28 +6,56 @@ import { openMenu, confirmBox, promptText, toast } from './dialogs.js';
 
 let el = null;
 let A = {};
+let projects = [];
+const tools = () => document.getElementById('homeTools');
+const search = () => document.getElementById('projectSearch');
 
 export function initHome(listEl, actions) {
   el = listEl;
   A = actions;
+  const box = search();
+  box.addEventListener('input', showList);
+  box.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && box.value) { e.preventDefault(); box.value = ''; showList(); }
+    else if (e.key === 'Enter') el.querySelector('.card')?.click();
+  });
+  // Ctrl+F or / jumps to the search box while the projects screen is showing
+  document.addEventListener('keydown', e => {
+    if (tools().hidden || tools().closest('[hidden]') || document.querySelector('.modal-back')) return;
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+    if (((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') || (e.key === '/' && !typing)) {
+      e.preventDefault(); box.focus(); box.select();
+    }
+  });
 }
 
 export async function renderHome() {
   el.replaceChildren(h('div', { class: 'note' }, 'Loading projects...'));
-  let projects;
   try {
     projects = await api.listProjects();
   } catch (err) {
+    tools().hidden = true;
     el.replaceChildren(h('div', { class: 'empty-projects' }, h('strong', null, 'Could not load projects'), err.message));
     return;
   }
+  tools().hidden = !projects.length;
   if (!projects.length) {
     el.replaceChildren(h('div', { class: 'empty-projects' },
       h('strong', null, 'No projects yet'),
       'Open one of your PlanSwift .SwiftJob files, or start a new takeoff from a PDF plan.'));
     return;
   }
-  el.replaceChildren(...projects.map(card));
+  showList();
+}
+
+/** Every word typed must appear in the project name (any order, any case). */
+function showList() {
+  const words = search().value.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = projects.filter(p => words.every(w => p.name.toLowerCase().includes(w)));
+  const count = document.getElementById('projectCount');
+  count.textContent = words.length ? `${shown.length} of ${projects.length}` : `${projects.length} project${projects.length === 1 ? '' : 's'}`;
+  el.replaceChildren(...(shown.length ? shown.map(card)
+    : [h('div', { class: 'empty-projects' }, h('strong', null, 'No matching projects'), `Nothing named like "${search().value.trim()}". Press Esc to clear the search.`)]));
 }
 
 function card(p) {

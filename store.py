@@ -11,6 +11,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from measure import UNITS
+
 SCHEMA = 1
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 IMAGE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}\.png$")
@@ -37,7 +39,7 @@ def slug(name: str) -> str:
 def new_project(pid: str, name: str, units: str = "metric") -> dict:
     t = now_iso()
     return {
-        "schema": SCHEMA, "id": pid, "name": name or "Untitled", "units": units if units in ("metric", "imperial") else "metric",
+        "schema": SCHEMA, "id": pid, "name": name or "Untitled", "units": units if units in UNITS else "m",
         "created": t, "modified": t, "settings": json.loads(json.dumps(DEFAULT_SETTINGS)),
         "pages": [], "tree": [], "marks": [], "materials": [], "assemblies": [],
     }
