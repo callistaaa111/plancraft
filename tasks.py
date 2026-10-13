@@ -65,3 +65,8 @@ def start(kind: str, fn, *args, cleanup=None) -> Task:
 
 def get(task_id: str) -> Task | None:
     return _tasks.get(task_id)
+
+
+def busy() -> bool:
+    """Is an import still running? (don't stop the server in the middle of one)"""
+    return any(t.status == "running" for t in list(_tasks.values()))

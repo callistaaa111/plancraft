@@ -344,3 +344,26 @@ kbd { font: 11.5px var(--font); padding: 1px 5px; border: 1px solid var(--border
 .legend { display: flex; flex-direction: column; gap: 4px; }
 .legend span { display: flex; align-items: center; gap: 8px; }
 .legend i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }
+
+/* ---- materials & prices ------------------------------------------------------------------------- */
+.modal.xl { width: min(1000px, 100%); }
+.mat-tabs { align-self: flex-start; }
+.mat-tabs button { padding: 5px 12px; font-size: 12.5px; }
+.mat-tab { display: flex; flex-direction: column; gap: 10px; min-height: 360px; }
+.mat-tab .spacer { flex: 1; }
+.mat-scroll { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 8px; }
+.mat-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.mat-table th { position: sticky; top: 0; background: var(--panel-2); text-align: left; font-weight: 600; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--border); z-index: 1; }
+.mat-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); }
+.mat-table td input[type="text"], .mat-table td input[type="number"], .mat-table td select { height: 28px; }
+.mat-table td.narrow { width: 90px; }
+.mat-table td.center { text-align: center; width: 48px; }
+.mat-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.mat-table td.x { width: 14px; text-align: center; color: var(--muted); }
+.mat-tab.asm { flex-direction: row; align-items: flex-start; }
+.asm-list { width: 230px; flex: none; display: flex; flex-direction: column; gap: 4px; max-height: 470px; overflow: auto; }
+.asm-row { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); cursor: pointer; text-align: left; }
+.asm-row:hover { background: var(--hover); }
+.asm-row.on { background: var(--sel); border-color: var(--accent); }
+.asm-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+@media (max-width: 760px) { .mat-tab.asm { flex-direction: column; } .asm-list { width: 100%; } }

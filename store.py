@@ -14,10 +14,11 @@ from pathlib import Path
 SCHEMA = 1
 ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 IMAGE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}\.png$")
+BACKUP_RE = re.compile(r"^\d{8}-\d{6}(-[a-z-]+)?\.json$")
 BACKUP_EVERY_S = 600
 BACKUPS_KEPT = 30
 
-DEFAULT_SETTINGS = {"allowance": {"linear": 20, "area": 0, "count": 0}}
+DEFAULT_SETTINGS = {"allowance": {"linear": 20, "area": 0, "count": 0}, "currency": "₱", "markup": 0}
 
 
 def now_iso() -> str:
@@ -38,7 +39,7 @@ def new_project(pid: str, name: str, units: str = "metric") -> dict:
     return {
         "schema": SCHEMA, "id": pid, "name": name or "Untitled", "units": units if units in ("metric", "imperial") else "metric",
         "created": t, "modified": t, "settings": json.loads(json.dumps(DEFAULT_SETTINGS)),
-        "pages": [], "tree": [],
+        "pages": [], "tree": [], "marks": [], "materials": [], "assemblies": [],
     }
 
 
@@ -141,15 +142,52 @@ class Store:
             _write_json_atomic(f, project)
         return {"modified": project["modified"]}
 
-    def _backup(self, d: Path, f: Path) -> None:
+    def _backup(self, d: Path, f: Path, force: bool = False, tag: str = "") -> None:
+        """Keep a copy of the project as it was, at most every BACKUP_EVERY_S (unless forced)."""
         bdir = d / "backups"
         bdir.mkdir(exist_ok=True)
         existing = sorted(bdir.glob("*.json"))
-        if existing and time.time() - existing[-1].stat().st_mtime < BACKUP_EVERY_S:
+        if not force and existing and time.time() - existing[-1].stat().st_mtime < BACKUP_EVERY_S:
             return
-        shutil.copy2(f, bdir / f"{datetime.now():%Y%m%d-%H%M%S}.json")
+        shutil.copyfile(f, bdir / f"{datetime.now():%Y%m%d-%H%M%S}{tag}.json")   # copyfile: the backup gets today's time
         for old in existing[:max(0, len(existing) + 1 - BACKUPS_KEPT)]:
             old.unlink(missing_ok=True)
+
+    def backups(self, pid: str) -> list[dict]:
+        bdir = self.project_dir(pid) / "backups"
+        out = []
+        for f in sorted(bdir.glob("*.json"), reverse=True) if bdir.is_dir() else []:
+            if not BACKUP_RE.match(f.name):
+                continue
+            try:
+                p = json.loads(f.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            items = sections = 0
+            stack = list(p.get("tree") or [])
+            while stack:
+                n = stack.pop()
+                if n.get("kind") == "folder":
+                    stack.extend(n.get("children") or [])
+                else:
+                    items += 1
+                    sections += len(n.get("sections") or [])
+            out.append({"name": f.name, "at": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds"),
+                        "saved": p.get("modified") or "", "pages": len(p.get("pages") or []), "items": items,
+                        "sections": sections, "beforeRestore": "-before-restore" in f.name})
+        return out
+
+    def restore(self, pid: str, name: str) -> dict:
+        """Put a backup back as the project (the current version is backed up first)."""
+        if not BACKUP_RE.match(name or ""):
+            raise KeyError(name)
+        d = self.project_dir(pid)
+        src = d / "backups" / name
+        project = json.loads(src.read_text(encoding="utf-8"))
+        with self._lock:
+            self._backup(d, d / "project.json", force=True, tag="-before-restore")
+        self.save(pid, project)
+        return self.load(pid)
 
     def delete(self, pid: str) -> None:
         d = self.project_dir(pid)

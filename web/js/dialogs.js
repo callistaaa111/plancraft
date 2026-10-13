@@ -7,7 +7,7 @@ import { icon } from './icons.js';
  * (after validate() passes) or null when dismissed.
  */
 export function modal({ title, body, buttons = [{ label: 'OK', value: true, primary: true }], wide = false,
-  validate = null, onOpen = null, dismissable = true }) {
+  validate = null, onOpen = null, dismissable = true, enterSubmits = true, size = '' }) {
   return new Promise(resolve => {
     const err = h('div', { class: 'err', role: 'alert' });
     const prev = document.activeElement;
@@ -28,14 +28,14 @@ export function modal({ title, body, buttons = [{ label: 'OK', value: true, prim
       class: `btn${b.primary ? ' primary' : ''}${b.danger ? ' danger solid' : ''}`, type: 'button',
       onclick: () => choose(b),
     }, b.label));
-    const box = h('div', { class: `modal${wide ? ' wide' : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
+    const box = h('div', { class: `modal${wide ? ' wide' : ''}${size ? ` ${size}` : ''}`, role: 'dialog', 'aria-modal': 'true', 'aria-label': title },
       h('header', null, title),
       h('div', { class: 'mbody' }, body, err),
       buttons.length ? h('footer', null, btns) : null);
     const back = h('div', { class: 'modal-back', onmousedown: e => { if (e.target === back && dismissable) close(null); } }, box);
     const onKey = e => {
       if (e.key === 'Escape' && dismissable) { e.preventDefault(); e.stopPropagation(); close(null); }
-      else if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {
+      else if (e.key === 'Enter' && enterSubmits && e.target.tagName !== 'TEXTAREA' && e.target.tagName !== 'BUTTON') {
         const p = buttons.find(b => b.primary);
         if (p) { e.preventDefault(); e.stopPropagation(); choose(p); }
       }

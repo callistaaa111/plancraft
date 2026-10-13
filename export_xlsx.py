@@ -10,6 +10,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+import pricing
 from measure import item_quantities
 
 THIN = Side(style="thin", color="000000")
@@ -194,6 +195,54 @@ def build(project: dict) -> bytes:
             wc.cell(i, 8, int(qty)).border = BORDER
         for col, w in zip("ABCDEFGH", (9, 28, 9, 12, 30, 3, 34, 8)):
             wc.column_dimensions[col].width = w
+
+    # ---- Bill of materials and costs ----------------------------------------------------------------
+    cost = pricing.costing(project)
+    if cost["bom"]:
+        cur = (project.get("settings") or {}).get("currency", "\u20b1")
+        money = f'"{cur}"#,##0.00' if cur else "#,##0.00"
+        wb_ = wb.create_sheet("Bill of Materials")
+        _title(wb_, project, f"Bill of materials  ·  from the assemblies on each item  ·  exported {stamp}")
+        _header(wb_, 4, ["CATEGORY", "MATERIAL", "UNIT", "QTY", "UNIT PRICE", "AMOUNT"], [20, 44, 8, 12, 14, 16])
+        r = 5
+        for b in cost["bom"]:
+            m = b["material"]
+            vals = [m.get("category") or "", m.get("name"), m.get("unit") or "", round(b["qty"], 4), pricing.num(m.get("price"))]
+            for c, v in enumerate(vals, start=1):
+                wb_.cell(r, c, v).border = BORDER
+            wb_.cell(r, 6, f"=D{r}*E{r}").border = BORDER
+            wb_.cell(r, 4).number_format = "0" if m.get("whole") else NUM
+            wb_.cell(r, 5).number_format = money
+            wb_.cell(r, 6).number_format = money
+            r += 1
+        last = r - 1
+        rows_ = [("Subtotal", f"=SUM(F5:F{last})"),
+                 (f"Markup {cost['markup']:g}%", f"=F{r}*{cost['markup'] / 100:g}"),
+                 ("TOTAL", f"=F{r}+F{r + 1}")]
+        for i, (label, formula) in enumerate(rows_):
+            wb_.cell(r + i, 5, label).font = BOLD
+            c = wb_.cell(r + i, 6, formula)
+            c.font, c.number_format, c.border = BOLD, money, BORDER
+        wb_.freeze_panes = "A5"
+
+        wi = wb.create_sheet("Materials by Item")
+        _title(wi, project, "Materials for each takeoff item (before rounding to whole units)")
+        _header(wi, 4, ["FOLDER", "ITEM", "ASSEMBLY", "MATERIAL", "QTY", "UNIT", "UNIT PRICE", "AMOUNT"], [22, 28, 26, 40, 12, 8, 14, 16])
+        r = 5
+        for ln in cost["lines"]:
+            m = ln["material"]
+            vals = [ln["folder"], ln["item"].get("name"), ln["assembly"].get("name"), m.get("name"), round(ln["qty"], 4),
+                    m.get("unit") or "", pricing.num(m.get("price"))]
+            for c, v in enumerate(vals, start=1):
+                wi.cell(r, c, v).border = BORDER
+            wi.cell(r, 8, f"=E{r}*G{r}").border = BORDER
+            wi.cell(r, 5).number_format = NUM
+            wi.cell(r, 7).number_format = money
+            wi.cell(r, 8).number_format = money
+            r += 1
+        wi.freeze_panes = "A5"
+        if r > 5:
+            wi.auto_filter.ref = f"A4:H{r - 1}"
 
     # ---- Notes (plan notes are not takeoff) ---------------------------------------------------------
     notes = [m for m in project.get("marks") or [] if m.get("kind") == "note" and (m.get("text") or "").strip()]

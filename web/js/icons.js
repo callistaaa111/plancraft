@@ -46,6 +46,7 @@ const P = {
   compare: '<rect x="3" y="3" width="12" height="12" rx="1"/><rect x="9" y="9" width="12" height="12" rx="1"/>',
   align: '<circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
   marks: '<path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8"/>',
+  tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',
   excel: '<path d="M5 3h10l4 4v14H5z"/><path d="M8 11l5 6M13 11l-5 6"/>',
 };
 
