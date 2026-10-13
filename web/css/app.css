@@ -319,3 +319,28 @@ kbd { font: 11.5px var(--font); padding: 1px 5px; border: 1px solid var(--border
   .top-actions .lbl { display: none; }
   .home-inner { padding: 20px 16px; }
 }
+
+/* ---- add-on panels (auto count, compare) and markup tools -------------------------------------- */
+.center { container-type: inline-size; container-name: center; }
+@container center (max-width: 1080px) {
+  .tool .lbl, .toggle .lbl { display: none; }
+}
+.mark-color { width: 28px; height: 28px; padding: 2px; border-radius: 6px; }
+.icon-toggle { padding: 0 7px; }
+.float-panel {
+  position: absolute; top: 10px; z-index: 5; width: 300px; max-width: calc(100% - 20px);
+  background: var(--panel); border: 1px solid var(--border-strong); border-radius: 10px; box-shadow: var(--shadow);
+  padding: 12px 12px 12px; display: flex; flex-direction: column; gap: 10px; font-size: 12.5px;
+}
+.float-panel.right { right: 10px; }
+.float-panel.left { left: 10px; }
+.fp-title { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 13px; }
+.fp-title svg { color: var(--accent); }
+.fp-counts { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12px; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.chip.on { background: #dcfce7; color: #166534; }
+.chip.off { background: #fee2e2; color: #991b1b; }
+.chip.counted { background: var(--panel-2); color: var(--muted); border: 1px solid var(--border); }
+.legend { display: flex; flex-direction: column; gap: 4px; }
+.legend span { display: flex; align-items: center; gap: 8px; }
+.legend i { width: 14px; height: 4px; border-radius: 2px; display: inline-block; }

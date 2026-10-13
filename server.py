@@ -28,6 +28,7 @@ APP_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(APP_DIR))
 
 import importers  # noqa: E402
+import vision  # noqa: E402
 import tasks  # noqa: E402
 from store import Store  # noqa: E402
 
@@ -199,6 +200,14 @@ class Api(BaseHTTPRequestHandler):
                 if not src.is_file():
                     raise ValueError("The copied page is no longer there (was it deleted?). Copy it again.")
                 return self.send_json(importers.copy_page_image(src, st.pages_dir(pid)))
+            if rest == ["autocount"] and method == "POST":           # find repeats of a symbol on a page
+                body = self.read_json()
+                return self.send_json(vision.find_symbols(st.image_path(pid, body.get("image")), body.get("rect"),
+                                                          bool(body.get("rotations")), method=body.get("method") or "auto",
+                                                          area=body.get("area")))
+            if rest[:1] == ["pages"] and len(rest) == 3 and rest[2] == "tint" and method == "GET":   # revision overlay
+                out = vision.tinted(st.image_path(pid, rest[1]), q.get("color") or "red", st.cache_dir(pid))
+                return self.send_file(out, cache="no-cache")
             if rest[:1] == ["pages"] and len(rest) == 2 and method == "GET":
                 return self.send_file(st.image_path(pid, rest[1]), cache="max-age=31536000, immutable")
             if rest == ["import", "pdf"] and method == "POST":

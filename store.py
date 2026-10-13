@@ -71,6 +71,9 @@ class Store:
         d.mkdir(exist_ok=True)
         return d
 
+    def cache_dir(self, pid: str) -> Path:
+        return self.project_dir(pid) / "cache"
+
     def image_path(self, pid: str, filename: str) -> Path:
         if not IMAGE_RE.match(filename or ""):
             raise KeyError(filename)

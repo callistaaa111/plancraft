@@ -13,6 +13,8 @@ import threading
 import unittest
 import urllib.error
 import urllib.request
+
+import numpy as np
 from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
@@ -199,6 +201,88 @@ class ImportTests(unittest.TestCase):
             lin, cnt = project["tree"][0]["children"]
             self.assertAlmostEqual(measure.item_quantities(lin, pages)["qty"], (50 + 60) / 10)
             self.assertEqual(measure.item_quantities(cnt, pages)["qty"], 3)
+
+
+class VisionTests(unittest.TestCase):
+    def _plan(self, tmp):
+        """A white sheet with eight 'junction box' symbols (circle with a cross), one turned, plus noise lines."""
+        import cv2
+        import numpy as np
+        img = np.full((600, 900), 255, np.uint8)
+        spots = [(100, 100), (300, 120), (520, 90), (760, 140), (120, 420), (340, 470), (600, 400)]
+        def symbol(x, y, turned=False):                           # a circle with a flag pointing right (or down)
+            cv2.circle(img, (x, y), 14, 0, 2)
+            if turned:
+                cv2.rectangle(img, (x - 6, y), (x + 6, y + 12), 0, -1)
+            else:
+                cv2.rectangle(img, (x, y - 6), (x + 12, y + 6), 0, -1)
+        for x, y in spots:
+            symbol(x, y)
+        symbol(800, 480, turned=True)                             # the same symbol turned 90 degrees
+        for i in range(0, 900, 150):
+            cv2.line(img, (i, 0), (i + 120, 600), 0, 1)           # wires and grid lines that are not symbols
+        path = Path(tmp) / "plan.png"
+        cv2.imencode(".png", img)[1].tofile(str(path))
+        return path, spots
+
+    def test_auto_count_finds_every_symbol(self):
+        import vision
+        with tempfile.TemporaryDirectory() as tmp:
+            path, spots = self._plan(tmp)
+            res = vision.find_symbols(path, [100 - 18, 100 - 18, 36, 36], method="shape")
+            strong = [m for m in res["matches"] if m[2] >= 0.9]
+            self.assertEqual(len(strong), len(spots))                  # every upright symbol, nothing else
+            for x, y in spots:
+                self.assertTrue(any(math.dist((x, y), m[:2]) < 4 for m in strong), (x, y))
+
+            def score_at(matches, x, y):
+                return max([m[2] for m in matches if math.dist((x, y), m[:2]) < 4] or [0])
+            upright_only = score_at(res["matches"], 800, 480)
+            turned = score_at(vision.find_symbols(path, [100 - 18, 100 - 18, 36, 36], rotations=True, method="shape")["matches"], 800, 480)
+            self.assertLess(upright_only, 0.9)                           # the turned one is weaker without rotations
+            self.assertGreater(turned, 0.9)                              # ... and found properly with them
+            with self.assertRaises(ValueError):
+                vision.find_symbols(path, [450, 300, 30, 30])         # empty paper
+
+    def test_dots_on_wires(self):
+        """Lights drawn as solid dots on their wires, among hatching, text and grey columns."""
+        import cv2
+        import vision
+        with tempfile.TemporaryDirectory() as tmp:
+            img = np.full((700, 1000), 255, np.uint8)
+            img[200:450, 500:800][::4, :] = 0                       # hatched (shaded) area
+            for k in range(250):
+                cv2.line(img, (500 + k, 200), (500 + k - 120, 450), 255, 1) if k % 3 else None
+            for xw in (150, 400, 650, 880):                          # vertical wires
+                cv2.line(img, (xw, 40), (xw, 660), 0, 2)
+            lights = [(xw, yy) for xw in (150, 400, 650, 880) for yy in (100, 260, 420, 580)]
+            for x, y in lights:
+                cv2.circle(img, (x, y), 9, 0, -1)
+            for i, (x, y) in enumerate(lights):
+                cv2.putText(img, str(i % 9 + 1), (x + 14, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.7, 0, 2)
+            cv2.rectangle(img, (250, 300), (290, 340), 110, -1)         # a grey column
+            path = Path(tmp) / "lights.png"
+            cv2.imencode(".png", img)[1].tofile(str(path))
+            res = vision.find_symbols(path, [150 - 16, 100 - 16, 32, 32])
+            self.assertEqual(res["method"], "dots")
+            found = [m for m in res["matches"] if m[2] >= 0.7]
+            hits = sum(1 for x, y in lights if any(math.dist((x, y), m[:2]) < 5 for m in found))
+            self.assertEqual(hits, len(lights))
+            self.assertEqual(len(found), len(lights))                 # no text, wire, column or hatch hits
+            part = vision.find_symbols(path, [150 - 16, 100 - 16, 32, 32], area=[0, 0, 500, 700])
+            self.assertEqual(len([m for m in part["matches"] if m[2] >= 0.7]), 8)    # only the left two wires
+
+    def test_tinted_overlay_image(self):
+        import cv2
+        import vision
+        with tempfile.TemporaryDirectory() as tmp:
+            path, _ = self._plan(tmp)
+            out = vision.tinted(path, "green", Path(tmp) / "cache")
+            img = cv2.imdecode(np.fromfile(str(out), np.uint8), cv2.IMREAD_UNCHANGED)
+            self.assertEqual(img.shape, (600, 900, 4))
+            self.assertEqual(int(img[300, 450, 3]), 0)                # paper is transparent
+            b, g, r, a = (int(v) for v in img[100, 106])              # on the flag: opaque green
+            self.assertEqual((r, g, b, a), (0, 150, 60, 255))
 
 
 class ExportTests(unittest.TestCase):

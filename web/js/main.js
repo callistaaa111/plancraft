@@ -1,7 +1,7 @@
 // PlanCraft: wiring of screens, toolbar, keyboard shortcuts, imports and export.
 import {
   S, on, emit, loadProject, closeProject, undo, redo, canUndo, canRedo, flushSave, saveOnClose, setTool, select,
-  currentPage, selectedItem, mutate,
+  currentPage, selectedItem, mutate, nodeById,
 } from './store.js';
 import * as api from './api.js';
 import * as M from './measure.js';
@@ -15,24 +15,39 @@ import { initProps } from './props.js';
 import { initHome, renderHome } from './home.js';
 import { scaleDialog, calibrateDialog, confirmAutoScale } from './scale.js';
 import { cropToNewPage, copyPage, pastePage } from './pageops.js';
+import { initMarkup } from './markup.js';
+import { initAutoCount } from './autocount.js';
+import { initCompare } from './compare.js';
 
 const viewer = new Viewer($('#canvasHost'), $('#canvas'));
+initMarkup(viewer);
+initAutoCount(viewer, $('#canvasHost'));
+const compare = initCompare(viewer, $('#canvasHost'));
 const PLAN_TYPES = '.pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.gif,.webp';
 const enc = encodeURIComponent;
 
 // ---- toolbar & buttons -----------------------------------------------------------------------------
-const TOOLS = { select: ['select', 'Select'], takeoff: ['takeoff', 'Takeoff'], measure: ['measure', 'Measure'], scale: ['scale', 'Scale'], crop: ['crop', 'Crop'] };
+const TOOLS = {
+  select: ['select', 'Select'], takeoff: ['takeoff', 'Takeoff'], autocount: ['wand', 'Auto count'], measure: ['measure', 'Measure'],
+  scale: ['scale', 'Scale'], crop: ['crop', 'Crop'], note: ['note', 'Note'], highlight: ['highlight', 'Highlight'],
+};
 for (const b of $$('#toolbar [data-tool]')) {
   const [ic, label] = TOOLS[b.dataset.tool];
   b.innerHTML = `${icon(ic)}<span class="lbl">${label}</span>`;
   b.addEventListener('click', () => chooseTool(b.dataset.tool));
 }
-const TOGGLES = { tgOrtho: ['ortho', 'Ortho', 'ortho'], tgSnap: ['snap', 'Snap', 'snap'], tgDeduct: ['deduct', 'Deduct', 'deduct'], tgLabels: ['label', 'Labels', 'labels'] };
+const TOGGLES = {
+  tgOrtho: ['ortho', 'Ortho', 'ortho'], tgSnap: ['snap', 'Snap', 'snap'], tgDeduct: ['deduct', 'Deduct', 'deduct'],
+  tgLabels: ['label', 'Labels', 'labels'], tgMarks: ['marks', '', 'showMarks'],
+};
 for (const [id, [ic, label, key]] of Object.entries(TOGGLES)) {
   const b = $(`#${id}`);
-  b.innerHTML = `${icon(ic)}<span class="lbl">${label}</span>`;
+  b.innerHTML = `${icon(ic)}${label ? `<span class="lbl">${label}</span>` : ''}`;
   b.addEventListener('click', () => toggle(key));
 }
+$('#btnCompare').innerHTML = `${icon('compare')}<span class="lbl">Compare</span>`;
+$('#btnCompare').addEventListener('click', () => compare.toggle());
+$('#markColor').addEventListener('input', e => { S.markColor = e.target.value; });
 const setBtn = (sel, ic, label) => { $(sel).innerHTML = `${icon(ic)}${label ? `<span class="lbl">${label}</span>` : ''}`; };
 setBtn('#btnUndo', 'undo', '');
 setBtn('#btnRedo', 'redo', '');
@@ -79,7 +94,8 @@ for (const b of $$('#qtyScope button')) {
 
 function chooseTool(tool) {
   if (!S.project) return;
-  if ((tool === 'scale' || tool === 'crop') && !currentPage()) return;
+  if (['scale', 'crop', 'autocount', 'note', 'highlight'].includes(tool) && !currentPage()) return;
+  if (tool === 'autocount' && selectedItem()?.type !== 'count') toast('Auto count: select a count item first, then drag a box around one symbol.');
   if (tool === 'crop') toast('Drag a box around the area you want as a new page.');
   if (tool === 'takeoff' && !selectedItem()) toast('Select an item in the Takeoff list (or create one), then click on the plan.');
   setTool(tool);
@@ -87,6 +103,7 @@ function chooseTool(tool) {
 
 function toggle(key) {
   S[key] = !S[key];
+  if (key === 'showMarks' && !S.showMarks && (S.tool === 'note' || S.tool === 'highlight')) setTool('select');
   if (key === 'deduct' && S.deduct && selectedItem()?.type !== 'area') toast('Deduct applies to area items: the next area you draw becomes a cut-out.');
   updateToolbar();
   viewer.updateCursorPt();
@@ -102,8 +119,12 @@ function updateToolbar() {
     $(`#${id}`).classList.toggle('on', !!S[key]);
     $(`#${id}`).setAttribute('aria-pressed', S[key] ? 'true' : 'false');
   }
+  $('#tgMarks').title = S.showMarks ? 'Hide notes and highlights' : 'Show notes and highlights';
+  $('#btnCompare').classList.toggle('on', compare.isOpen());
+  $('#btnCompare').setAttribute('aria-pressed', compare.isOpen() ? 'true' : 'false');
   const hasPage = !!currentPage();
   for (const b of $$('#toolbar button')) if (b.id !== 'zoomLabel') b.disabled = !hasPage;
+  $('#markColor').disabled = !hasPage;
   $('#btnUndo').disabled = !canUndo();
   $('#btnRedo').disabled = !canRedo();
   const pages = S.project?.pages || [];
@@ -212,10 +233,35 @@ async function renameProject() {
 }
 
 // ---- panels ------------------------------------------------------------------------------------------
-initTree($('#tree'), $('#treeFilter'));
+initTree($('#tree'), $('#treeFilter'), { showItem });
+
+/**
+ * Jump to the page that has this item's takeoff and show it. From a search, it always zooms to the item; clicking the
+ * same item again moves on to its next page. Without a search it only switches page when the item is not on this one.
+ */
+function showItem(id, { search = false, again = false } = {}) {
+  const it = nodeById(id);
+  if (!it?.sections?.length) {
+    if (search) toast(`"${it?.name || 'This item'}" has no takeoff yet.`);
+    return;
+  }
+  const pages = S.project.pages.filter(p => it.sections.some(s => s.page === p.id));
+  if (!pages.length) return;
+  const here = pages.findIndex(p => p.id === S.pageId);
+  if (!search && here >= 0) return;
+  let target = pages[here >= 0 ? here : 0];
+  if (search && again && here >= 0 && pages.length > 1) target = pages[(here + 1) % pages.length];
+  if (target.id !== S.pageId) openPage(target.id);
+  viewer.showPoints(it.sections.filter(s => s.page === target.id).flatMap(s => s.points));
+  if (pages.length > 1) {
+    const n = pages.indexOf(target) + 1;
+    toast(`"${it.name}": page ${n} of ${pages.length} with takeoff (${target.name}).${search ? ' Click it again for the next page.' : ''}`);
+  }
+}
 initPages($('#pageList'), $('#pageFilter'), $('#pageCount'), {
   addPlans: () => addPlans(),
   scale: id => { openPage(id); scaleDialog(id, { onCalibrate: startCalibrate }); },
+  compare: id => { openPage(id); if (!compare.isOpen()) compare.open(); },
 });
 initProps($('#props'), {
   exportExcel: () => exportExcel(),
@@ -409,7 +455,9 @@ async function exportExcel() {
 function showHelp() {
   const rows = [
     ['V', 'Select / edit takeoff'], ['T', 'Take off the selected item'], ['M', 'Measure (not saved)'], ['K', 'Set scale from a known length'],
-    ['C', 'Crop: drag a box to make it a new page'], ['Ctrl+C / Ctrl+V', 'Copy the open page / paste it (also into another project)'],
+    ['C', 'Crop: drag a box to make it a new page'],
+    ['A', 'Auto count: select a count item, box one symbol, review the matches, Add'],
+    ['N / H', 'Note / highlighter on the plan (not counted)'], ['Ctrl+C / Ctrl+V', 'Copy the open page / paste it (also into another project)'],
     ['Click', 'Add a point (or a marker for counts)'], ['Double-click, Enter, right-click', 'Finish the run / area / count'],
     ['Backspace', 'Remove the last point while drawing'], ['Esc', 'Cancel drawing / clear selection'],
     ['Shift (hold) or O', 'Ortho: straight horizontal / vertical'], ['S', 'Snap to existing points (hold Ctrl to skip)'],
@@ -449,6 +497,7 @@ document.addEventListener('keydown', e => {
   if (viewer.handleKey(e)) { e.preventDefault(); return; }
   const map = {
     v: () => chooseTool('select'), t: () => chooseTool('takeoff'), m: () => chooseTool('measure'), k: () => chooseTool('scale'), c: () => chooseTool('crop'),
+    a: () => chooseTool('autocount'), n: () => chooseTool('note'), h: () => chooseTool('highlight'),
     o: () => toggle('ortho'), s: () => toggle('snap'), d: () => toggle('deduct'), l: () => toggle('labels'),
     f: () => viewer.fit(), '+': () => viewer.zoomAt(1.25), '=': () => viewer.zoomAt(1.25), '-': () => viewer.zoomAt(0.8),
     pageup: () => stepPage(-1), pagedown: () => stepPage(1), '?': showHelp,

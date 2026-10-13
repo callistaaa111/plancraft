@@ -80,8 +80,9 @@ export function copyPage(pageId) {
       sections: secs.map(s => ({ points: s.points, ...(s.deduct ? { deduct: true } : {}) })),
     });
   }
-  const { id, ...meta } = page;
-  const clip = { v: 1, projectId: S.project.id, projectName: S.project.name, page: { ...meta, oldId: id }, items };
+  const { id, overlay, ...meta } = page;   // the revision-overlay link belongs to this project only
+  const marks = (S.project.marks || []).filter(m => m.page === page.id).map(m => ({ ...m, id: undefined, page: undefined }));
+  const clip = { v: 1, projectId: S.project.id, projectName: S.project.name, page: { ...meta, oldId: id }, items, marks };
   memoryClip = clip;
   try { localStorage.setItem(CLIP_KEY, JSON.stringify(clip)); } catch { /* too big or unavailable: memory copy still works */ }
   emit('clip');
@@ -133,6 +134,7 @@ async function doPaste(clip, name, withTakeoff) {
   mutate(p => {
     insertPage(np, after);
     if (!withTakeoff) return;
+    for (const m of clip.marks || []) p.marks.push({ ...JSON.parse(JSON.stringify(m)), id: uid('m'), page: np.id });
     const x = ix();
     for (const ci of clip.items) {
       let target = clip.projectId === p.id ? x.nodes.get(ci.id)?.node : null;

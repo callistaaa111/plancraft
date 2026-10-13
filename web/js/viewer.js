@@ -81,6 +81,7 @@ export class Viewer {
     this.onCrop = null;     // ({x, y, w, h}) => void, set by main
     this.cropRect = null;
     this.onView = null;     // () => void after zoom/pan
+    this.ext = [];          // add-ons (markup, auto count, compare): see use()
 
     new ResizeObserver(() => this.resize()).observe(host);
     canvas.addEventListener('pointerdown', e => this.onDown(e));
@@ -97,8 +98,21 @@ export class Viewer {
     on('change', () => { if (this.shownPage !== S.pageId || !pageById(this.shownPage)) this.showPage(); this.render(); });
     on('live', () => this.render());
     on('select', () => this.render());
-    on('tool', () => { if (S.tool !== 'takeoff') this.countSec = null; this.draft = null; this.cropRect = null; this.updateCursor(); this.render(); });
+    on('tool', () => { if (S.tool !== 'takeoff') this.countSec = null; this.draft = null; this.cropRect = null; this.ext.forEach(x => x.reset?.('tool')); this.canvas.style.cursor = ''; this.updateCursor(); this.render(); });
   }
+
+  /**
+   * Add-ons hook into drawing and input. Optional members: tools (tool names they own), drawPage(ctx, page) -> true if
+   * they drew the page image themselves, drawUnder / drawOver(ctx, page), down / move / dbl(e, x, y) -> handled,
+   * up(e), selectDown(e, x, y, 'before' | 'after') -> handled, rightClick(clientX, clientY, x, y) -> handled,
+   * key(e) -> handled, hint() -> text, reset(why).
+   */
+  use(ext) {
+    this.ext.push(ext);
+    return ext;
+  }
+
+  extTool() { return this.ext.find(x => x.tools?.includes(S.tool)) || null; }
 
   // ---- geometry --------------------------------------------------------------------------------------
   toImg(sx, sy) { const v = this.view; return [(sx - v.tx) / v.s, (sy - v.ty) / v.s]; }
@@ -118,6 +132,7 @@ export class Viewer {
     this.canvas.width = Math.round(this.w * this.dpr);
     this.canvas.height = Math.round(this.h * this.dpr);
     if (firstSize && this.shownPage) this.fit();
+    if (this.pendingShow && this.w >= 120 && this.h >= 120) this.showPoints(this.pendingShow);
     this.renderNow();
   }
 
@@ -129,6 +144,7 @@ export class Viewer {
     this.countSec = null;
     this.measureDone = null;
     this.cropRect = null;
+    this.ext.forEach(x => x.reset?.('page'));
     this.shownPage = page?.id || null;
     if (!page) { this.render(); return; }
     const v = this.views.get(page.id);
@@ -232,7 +248,8 @@ export class Viewer {
     ctx.restore();
 
     const e = this.cache.get(page.id);
-    if (e?.img) {
+    if (this.ext.some(x => x.drawPage?.(ctx, page))) { /* drawn by an add-on (revision overlay) */ }
+    else if (e?.img) {
       const want = W * s * this.dpr;
       let src = e.img, sw = e.iw;
       for (const m of e.mips) if (m.w >= want) { src = m.bmp; sw = m.w; break; }
@@ -252,9 +269,11 @@ export class Viewer {
       ctx.textAlign = 'left';
     }
 
+    for (const x of this.ext) x.drawUnder?.(ctx, page);
     this.drawTakeoff(page);
     this.drawDraft(page);
     this.drawCrop(page);
+    for (const x of this.ext) x.drawOver?.(ctx, page);
     this.updateStatus(page);
   }
 
@@ -594,6 +613,7 @@ export class Viewer {
   }
 
   hintText() {
+    for (const x of this.ext) { const h = x.hint?.(); if (h) return h; }
     const it = selectedItem();
     switch (S.tool) {
       case 'takeoff':
@@ -710,7 +730,7 @@ export class Viewer {
     c.remove('c-pan', 'c-panning', 'c-draw', 'c-move', 'c-pointer');
     if (this.drag?.mode === 'pan') c.add('c-panning');
     else if (this.space) c.add('c-pan');
-    else if (S.tool === 'takeoff' || S.tool === 'measure' || S.tool === 'scale' || S.tool === 'crop') c.add('c-draw');
+    else if (S.tool === 'takeoff' || S.tool === 'measure' || S.tool === 'scale' || S.tool === 'crop' || this.extTool()) c.add('c-draw');
     else if (this.hover === 'vertex' || this.drag) c.add('c-move');
     else if (this.hover) c.add('c-pointer');
   }
@@ -725,6 +745,8 @@ export class Viewer {
     if (e.button === 2) { e.preventDefault(); this.startPan(e, x, y, { right: true, cx: e.clientX, cy: e.clientY }); return; }
     if (e.button === 1 || (e.button === 0 && this.space)) { e.preventDefault(); this.startPan(e, x, y); return; }
     if (e.button !== 0) return;
+    const ext = this.extTool();
+    if (ext) { ext.down?.(e, x, y); return; }
     if (S.tool === 'select') this.selectDown(e, x, y);
     else if (S.tool === 'takeoff') this.takeoffDown(e, x, y);
     else if (S.tool === 'measure' || S.tool === 'scale') this.pointToolDown(e, x, y);
@@ -749,7 +771,14 @@ export class Viewer {
     this.updateCursor();
   }
 
+  /** Start a drag that an add-on handles (its move / up get the events). */
+  extDrag(ext, e, data = {}) {
+    this.drag = { mode: 'ext', ext, ...data };
+    this.capture(e);
+  }
+
   selectDown(e, x, y) {
+    if (this.ext.some(xt => xt.selectDown?.(e, x, y, 'before'))) return;
     const vh = this.vertexHit(x, y);
     if (vh) {
       if (e.altKey) { this.deleteVertex(vh); return; }
@@ -768,6 +797,7 @@ export class Viewer {
       this.capture(e);
       return;
     }
+    if (this.ext.some(xt => xt.selectDown?.(e, x, y, 'after'))) return;
     if (S.secSel) select(S.sel, null);
     this.startPan(e, x, y);
   }
@@ -833,6 +863,8 @@ export class Viewer {
     this.mouse = { x, y };
     this.shift = e.shiftKey;
     const d = this.drag;
+    if (d?.mode === 'ext') { d.ext.move?.(e, x, y, d); return; }
+    if (!d && this.extTool()?.move?.(e, x, y)) return;
     if (d) {
       if (d.mode === 'pan') {
         if (!d.moved && Math.hypot(x - d.sx, y - d.sy) < 4) return;   // a click, not a drag (yet)
@@ -871,6 +903,8 @@ export class Viewer {
       return;
     }
     if (S.tool === 'select') {
+      const extCursor = this.ext.map(xt => xt.hover?.(x, y)).find(Boolean) || '';
+      if (this.canvas.style.cursor !== extCursor) this.canvas.style.cursor = extCursor;
       const prevHover = this.hover;
       this.hover = this.vertexHit(x, y) ? 'vertex' : this.hitTest(x, y) ? 'item' : null;
       if (prevHover !== this.hover) this.updateCursor();
@@ -885,7 +919,8 @@ export class Viewer {
     if (!d) return;
     this.drag = null;
     try { this.canvas.releasePointerCapture(e.pointerId); } catch { /* already released */ }
-    if (d.mode === 'pan') {
+    if (d.mode === 'ext') d.ext.up?.(e, d);
+    else if (d.mode === 'pan') {
       if (d.right && !d.moved && e.type === 'pointerup') this.rightClick(d.cx, d.cy);
     } else if (d.mode === 'crop') {
       const r = this.cropRect;
@@ -898,6 +933,8 @@ export class Viewer {
   }
 
   onDbl(e) {
+    const { x: lx, y: ly } = this.local(e);
+    if (this.ext.some(xt => xt.dbl?.(e, lx, ly))) return;
     if (S.tool === 'takeoff' || S.tool === 'measure') { e.preventDefault(); this.finishDraft(); return; }
     if (S.tool === 'select') {
       const sel = this.selectedSection();
@@ -925,9 +962,10 @@ export class Viewer {
   /** A right-click that did not move: finish the current run, or offer actions on a takeoff. */
   rightClick(clientX, clientY) {
     if (this.draft || this.countSec) { this.finishDraft(); return; }
-    if (S.tool !== 'select') return;
     const r = this.canvas.getBoundingClientRect();
     const x = clientX - r.left, y = clientY - r.top;
+    if (this.ext.some(xt => xt.rightClick?.(clientX, clientY, x, y))) return;
+    if (S.tool !== 'select') return;
     const vh = this.vertexHit(x, y);
     const hit = vh ? null : this.hitTest(x, y);
     if (!vh && !hit) return;
@@ -1025,6 +1063,7 @@ export class Viewer {
 
   /** Keys the viewer owns. Returns true when handled. */
   handleKey(e) {
+    if (this.ext.some(x => x.key?.(e))) return true;
     switch (e.key) {
       case 'Escape':
         if (this.cropRect) { this.clearCrop(); return true; }
@@ -1050,6 +1089,26 @@ export class Viewer {
     if (this.space === down) return;
     this.space = down;
     this.updateCursor();
+  }
+
+  /** Zoom so that all these page points are in view (not closer than 100%, not further than the whole page). */
+  showPoints(pts) {
+    const page = currentPage();
+    if (!page || !pts.length) return;
+    if (this.w < 120 || this.h < 120) { this.pendingShow = pts; return; }   // not laid out yet: do it on resize
+    this.pendingShow = null;
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const minSpan = 400;                                  // a single marker still shows its surroundings
+    if (x1 - x0 < minSpan) { const c = (x0 + x1) / 2; x0 = c - minSpan / 2; x1 = c + minSpan / 2; }
+    if (y1 - y0 < minSpan) { const c = (y0 + y1) / 2; y0 = c - minSpan / 2; y1 = c + minSpan / 2; }
+    const [W, H] = this.pageSize(page);
+    const pad = Math.min(60, this.w / 6, this.h / 6);
+    const fitAll = Math.min((this.w - 48) / W, (this.h - 48) / H);
+    const s = clamp(Math.min((this.w - pad * 2) / (x1 - x0), (this.h - pad * 2) / (y1 - y0)), Math.min(fitAll, 1), 1);
+    this.view = { s, tx: this.w / 2 - ((x0 + x1) / 2) * s, ty: this.h / 2 - ((y0 + y1) / 2) * s };
+    this.onView?.();
+    this.render();
   }
 
   /** Center the view on a section (used from the properties panel). */

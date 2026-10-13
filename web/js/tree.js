@@ -13,9 +13,11 @@ let filter = '';
 let renaming = null;
 let dragId = null;
 let lastSel = null;
+let showItem = null;     // (id, {search}) -> jump to the page with the item's takeoff (set by main)
 
-export function initTree(container, filterInput) {
+export function initTree(container, filterInput, actions = {}) {
   el = container;
+  showItem = actions.showItem || null;
   filterInput.addEventListener('input', () => { filter = filterInput.value.trim().toLowerCase(); render(); });
   el.addEventListener('click', onClick);
   el.addEventListener('dblclick', onDbl);
@@ -233,7 +235,9 @@ function onClick(e) {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'eye') { toggleVisible(id); return; }
   if (act === 'twisty') { toggleOpen(id); return; }
+  const again = S.sel?.id === id;
   selectNode(id);
+  if (nodeById(id)?.kind === 'item') showItem?.(id, { search: !!filter, again });
 }
 
 function onDbl(e) {

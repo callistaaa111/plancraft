@@ -195,6 +195,20 @@ def build(project: dict) -> bytes:
         for col, w in zip("ABCDEFGH", (9, 28, 9, 12, 30, 3, 34, 8)):
             wc.column_dimensions[col].width = w
 
+    # ---- Notes (plan notes are not takeoff) ---------------------------------------------------------
+    notes = [m for m in project.get("marks") or [] if m.get("kind") == "note" and (m.get("text") or "").strip()]
+    if notes:
+        wn = wb.create_sheet("Notes")
+        _title(wn, project, "Notes written on the plans")
+        _header(wn, 4, ["PAGE", "NOTE"], [36, 90])
+        notes.sort(key=lambda m: page_order.get(m.get("page"), 1e9))
+        for i, m in enumerate(notes, start=5):
+            wn.cell(i, 1, (pages.get(m.get("page")) or {}).get("name", "")).border = BORDER
+            c = wn.cell(i, 2, m["text"].strip())
+            c.border = BORDER
+            c.alignment = Alignment(wrap_text=True, vertical="top")
+        wn.freeze_panes = "A5"
+
     # ---- Pages --------------------------------------------------------------------------------------
     wpg = wb.create_sheet("Pages")
     _title(wpg, project, "Pages and their scales")
