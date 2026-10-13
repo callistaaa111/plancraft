@@ -56,7 +56,7 @@ setBtn('#btnUndo', 'undo', '');
 setBtn('#btnRedo', 'redo', '');
 setBtn('#btnAddPlans', 'upload', 'Add plans');
 setBtn('#btnMaterials', 'tag', 'Materials');
-setBtn('#btnExport', 'excel', 'Export Excel');
+$('#btnExport').innerHTML = `${icon('download')}<span class="lbl">Export</span>${icon('caret')}`;
 setBtn('#btnPrint', 'printer', 'Print / PDF');
 setBtn('#btnHelp', 'help', '');
 setBtn('#btnAddPages', 'plus', '');
@@ -79,7 +79,14 @@ $('#btnRedo').onclick = () => redo();
 $('#btnAddPlans').onclick = () => addPlans();
 $('#btnMaterials').onclick = () => openMaterials();
 $('#btnAddPages').onclick = () => addPlans();
-$('#btnExport').onclick = () => exportExcel();
+$('#btnExport').onclick = () => {
+  const r = $('#btnExport').getBoundingClientRect();
+  openMenu(r.left, r.bottom + 4, [
+    { label: 'Excel summary (.xlsx)', icon: 'excel', action: () => exportExcel() },
+    { label: 'PlanSwift job (.SwiftJob)', icon: 'job', action: () => exportSwiftJob(S.project?.id) },
+    { label: 'PDF of the plans...', icon: 'printer', kbd: 'Ctrl+P', action: () => printPlans() },
+  ]);
+};
 $('#btnPrint').onclick = () => printPlans();
 
 /** What is on screen now (page pixels), for printing just that part. */
@@ -308,7 +315,7 @@ initProps($('#props'), {
   crop: () => chooseTool('crop'),
   reveal: sec => viewer.reveal(sec),
 });
-initHome($('#projectList'), { exportProject: id => download(api.exportUrl(id)) });
+initHome($('#projectList'), { exportProject: id => download(api.exportUrl(id)), exportSwiftJob: id => exportSwiftJob(id) });
 
 // resizable panels, remembered in this browser
 const ws = $('#workspace');
@@ -549,6 +556,23 @@ async function exportExcel() {
     await flushSave();
     download(api.exportUrl(S.project.id));
   } catch (err) { toast(`Export failed: ${err.message}`, 'error'); }
+}
+
+/** Save a project as a PlanSwift job that opens in PlanSwift: pages, folders and takeoff with its points. */
+async function exportSwiftJob(pid) {
+  if (!pid) return;
+  const prog = progressBox('Making the PlanSwift job');
+  try {
+    if (S.project?.id === pid) await flushSave();
+    const res = await api.exportSwiftJob(pid, (f, msg) => prog.set(f, msg));
+    prog.close();
+    download(res.url);
+    toast(`PlanSwift job ready: ${res.pages} page(s), ${res.items} item(s), ${(res.size / 1048576).toFixed(1)} MB.`
+      + (res.deducts ? ` ${res.deducts} cut-out area(s) went in as separate "(deduct)" items.` : ''));
+  } catch (err) {
+    prog.close();
+    toast(`PlanSwift export failed: ${err.message}`, 'error');
+  }
 }
 
 function showHelp() {

@@ -34,6 +34,14 @@ export const tintUrl = (id, image, color) => `/api/projects/${encodeURIComponent
 export const pageUrl = (projectId, page) => `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(page.image)}`;
 export const exportUrl = projectId => `/api/projects/${encodeURIComponent(projectId)}/export.xlsx`;
 
+/** Build a PlanSwift job of the project on the server, then download it. onProgress(fraction, message). */
+export async function exportSwiftJob(projectId, onProgress) {
+  const base = `/api/projects/${encodeURIComponent(projectId)}`;
+  const { task } = await req('POST', `${base}/export.swiftjob`, {});
+  const res = await waitTask(task, t => onProgress?.(t.total ? t.done / t.total : null, t.message));
+  return { ...res, url: `${base}/exports/${encodeURIComponent(res.file)}?download=1` };
+}
+
 /** Save on page close; fetch() may be cancelled at that point, a beacon is not. */
 export function beaconSave(id, project) {
   const blob = new Blob([JSON.stringify(project)], { type: 'application/json' });

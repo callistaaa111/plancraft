@@ -35,6 +35,8 @@ from store import Store  # noqa: E402
 WEB_DIR = APP_DIR / "web"
 DEFAULT_PORT = 8791
 MAX_JSON = 300 * 1024 * 1024
+# when the program files last changed: a newer launch replaces a server still running older code
+CODE_STAMP = max(f.stat().st_mtime for f in APP_DIR.glob("*.py"))
 CHUNK = 1024 * 1024
 
 mimetypes.add_type("text/javascript", ".js")
@@ -46,6 +48,7 @@ class Api(BaseHTTPRequestHandler):
     server_version = "PlanCraft/1.0"
     store: Store = None  # set in main()
     last_beat = 0.0      # last heartbeat from an open window (for --idle-exit)
+    httpd = None         # set in main(), so /api/quit can stop the server
 
     # ---- plumbing -----------------------------------------------------------------------------------
     def log_message(self, fmt, *args):
@@ -153,7 +156,16 @@ class Api(BaseHTTPRequestHandler):
         if parts == ["ping"]:
             if q.get("beat"):
                 Api.last_beat = time.time()          # an open PlanCraft window says hello
-            return self.send_json({"app": "PlanCraft"})
+            return self.send_json({"app": "PlanCraft", "code": CODE_STAMP})
+
+        if parts == ["quit"] and method == "POST":
+            # only PlanCraft's own launcher sends this header (a web page cannot without the server allowing it)
+            if self.headers.get("X-PlanCraft") != "quit":
+                return self.fail(403, "Not allowed.")
+            if tasks.busy():
+                return self.send_json({"ok": False, "busy": True}, 409)
+            threading.Timer(0.2, Api.httpd.shutdown).start()
+            return self.send_json({"ok": True})
 
         if parts == ["projects"]:
             if method == "GET":
@@ -215,9 +227,20 @@ class Api(BaseHTTPRequestHandler):
                 out = folder / f"{name} - {time.strftime('%Y%m%d-%H%M%S')}.pdf"
                 task = tasks.start("print", printpdf.build, project, st.project_dir(pid), opts, out)
                 return self.send_json({"task": task.id}, 202)
+            if rest == ["export.swiftjob"] and method == "POST":    # PlanSwift job (background job)
+                import export_swiftjob
+                import printpdf
+                project = st.load(pid)
+                folder = st.project_dir(pid) / "exports"
+                folder.mkdir(exist_ok=True)
+                printpdf.clean_exports(folder)
+                name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "job")[:60]
+                out = folder / f"{name} - {time.strftime('%Y%m%d-%H%M%S')}.SwiftJob"
+                task = tasks.start("swiftjob", export_swiftjob.build, project, st.project_dir(pid), out)
+                return self.send_json({"task": task.id}, 202)
             if rest[:1] == ["exports"] and len(rest) == 2 and method == "GET":
                 f = st.project_dir(pid) / "exports" / rest[1]
-                if not re.fullmatch(r'[^\\/:*?"<>|]{1,120}\.pdf', rest[1]) or not f.is_file():
+                if not re.fullmatch(r'[^\\/:*?"<>|]{1,120}\.(pdf|SwiftJob)', rest[1]) or not f.is_file():
                     raise KeyError(rest[1])
                 return self.send_file(f, cache="no-store", download_name=rest[1] if q.get("download") else None)
             if rest == ["thumb.jpg"] and method == "GET":
@@ -331,12 +354,36 @@ def quiet_console(data_dir: str) -> None:
     sys.stderr = sys.stderr or log
 
 
-def already_running(port) -> bool:
+def running_server(port) -> dict | None:
+    """The ping reply of a PlanCraft server already on this port, or None."""
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=1) as r:
-            return json.loads(r.read()).get("app") == "PlanCraft"
+            info = json.loads(r.read())
+            return info if info.get("app") == "PlanCraft" else None
     except Exception:
+        return None
+
+
+def already_running(port) -> bool:
+    return running_server(port) is not None
+
+
+def replace_old_server(port, info) -> bool:
+    """Stop a server that runs older program files (after an update). True when the port is free again."""
+    if info.get("code", 0) >= CODE_STAMP - 1:
         return False
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/quit", data=b"{}", method="POST",
+                                 headers={"X-PlanCraft": "quit", "Content-Type": "application/json"})
+    try:
+        urllib.request.urlopen(req, timeout=3).close()
+    except Exception:
+        return False                       # too old to know /api/quit, or busy with an import / export
+    for _ in range(50):
+        time.sleep(0.1)
+        if not already_running(port):
+            time.sleep(0.3)                # let the socket close
+            return True
+    return False
 
 
 def main(argv=None):
@@ -361,7 +408,11 @@ def main(argv=None):
         return cli_import(args, store)
 
     url = f"http://127.0.0.1:{args.port}/"
-    if already_running(args.port):
+    info = running_server(args.port)
+    if info and replace_old_server(args.port, info):
+        print("Stopped an older PlanCraft server that was still running: starting the updated one.")
+        info = None
+    if info:
         print(f"PlanCraft is already running at {url}")
         if args.open:
             open_window(url, args.app)
@@ -369,6 +420,7 @@ def main(argv=None):
     Api.store = store
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Api)
     httpd.daemon_threads = True
+    Api.httpd = httpd
     print(f"PlanCraft is running at {url}  (projects in {store.root})")
     print("Keep this window open while you work. Press Ctrl+C to stop.")
     if args.open:

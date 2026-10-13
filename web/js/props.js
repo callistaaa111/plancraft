@@ -26,6 +26,24 @@ export function initProps(container, actions) {
   on('clip', render);
   on('change', () => (el.contains(document.activeElement) && document.activeElement !== el ? refresh() : render()));
   on('live', refresh);
+  on('draft', showDraft);
+}
+
+/** While a run is being drawn, the selected item's total includes it (marked as in progress). */
+function showDraft(d) {
+  const node = S.sel ? nodeById(S.sel.id) : null;
+  const big = el?.querySelector('.qtybox .big');
+  if (!big || node?.kind !== 'item') return;
+  const add = d && d.itemId === node.id ? d.qty : 0;
+  big.firstChild.textContent = fmt(qtyOf(node).qty + add, node.type === 'count' ? 0 : 2);
+  big.classList.toggle('drawing', !!add);
+  let line = el.querySelector('.qtybox .draft-line');
+  if (!add) { line?.remove(); return; }
+  if (!line) {
+    line = h('div', { class: 'line draft-line' }, h('span', null, 'Drawing now'), h('span'));
+    big.after(line);
+  }
+  line.lastChild.textContent = `${add > 0 ? '+' : ''}${fmt(add, 2)} ${qtyOf(node).unit}`;
 }
 
 // ---- field helpers ---------------------------------------------------------------------------------
@@ -156,6 +174,7 @@ export function render() {
   else if (node?.kind === 'folder') body = folderPanel(node);
   else body = pagePanel();
   el.replaceChildren(body);
+  if (S.draftQty) showDraft(S.draftQty);   // keep a running total across redraws
 }
 
 function refresh() {
@@ -165,7 +184,7 @@ function refresh() {
   if (!box) return;
   const title = el.querySelector('.props .title');
   if (title && node) title.textContent = node.name;
-  if (node?.kind === 'item') box.replaceWith(itemQty(node));
+  if (node?.kind === 'item') { box.replaceWith(itemQty(node)); if (S.draftQty) showDraft(S.draftQty); }
   else if (node?.kind === 'folder') box.replaceWith(folderQty(node));
   else render();
 }
