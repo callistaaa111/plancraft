@@ -1,7 +1,7 @@
 // PlanCraft: wiring of screens, toolbar, keyboard shortcuts, imports and export.
 import {
   S, on, emit, loadProject, closeProject, undo, redo, canUndo, canRedo, flushSave, saveOnClose, setTool, select,
-  currentPage, selectedItem, mutate, nodeById,
+  currentPage, selectedItem, mutate, nodeById, markDirty,
 } from './store.js';
 import * as api from './api.js';
 import * as M from './measure.js';
@@ -16,6 +16,8 @@ import { initHome, renderHome } from './home.js';
 import { scaleDialog, calibrateDialog, confirmAutoScale } from './scale.js';
 import { cropToNewPage, copyPage, pastePage } from './pageops.js';
 import { initMarkup } from './markup.js';
+import { openMaterials } from './materials.js';
+import { getDraft, dropDraft, sameContent } from './recovery.js';
 import { initAutoCount } from './autocount.js';
 import { initCompare } from './compare.js';
 
@@ -52,6 +54,7 @@ const setBtn = (sel, ic, label) => { $(sel).innerHTML = `${icon(ic)}${label ? `<
 setBtn('#btnUndo', 'undo', '');
 setBtn('#btnRedo', 'redo', '');
 setBtn('#btnAddPlans', 'upload', 'Add plans');
+setBtn('#btnMaterials', 'tag', 'Materials');
 setBtn('#btnExport', 'excel', 'Export Excel');
 setBtn('#btnHelp', 'help', '');
 setBtn('#btnAddPages', 'plus', '');
@@ -72,6 +75,7 @@ for (const b of $$('[data-new]')) {
 $('#btnUndo').onclick = () => undo();
 $('#btnRedo').onclick = () => redo();
 $('#btnAddPlans').onclick = () => addPlans();
+$('#btnMaterials').onclick = () => openMaterials();
 $('#btnAddPages').onclick = () => addPlans();
 $('#btnExport').onclick = () => exportExcel();
 $('#btnHelp').onclick = () => showHelp();
@@ -265,6 +269,7 @@ initPages($('#pageList'), $('#pageFilter'), $('#pageCount'), {
 });
 initProps($('#props'), {
   exportExcel: () => exportExcel(),
+  backups: () => showBackups(),
   calibrate: startCalibrate,
   measure: startMeasure,
   crop: () => chooseTool('crop'),
@@ -340,11 +345,35 @@ async function openProject(id) {
     location.hash = '#/';
     return;
   }
+  // work that never reached the disk (PlanCraft, the browser or the PC went down): offer it back
+  let recovered = false;
+  const draft = await getDraft(id);
+  if (draft) {
+    let saved = null;
+    try { saved = JSON.parse(draft.json); } catch { /* broken copy */ }
+    if (saved && !sameContent(saved, p)) {
+      const when = new Date(draft.at).toLocaleString();
+      const choice = await modal({
+        title: 'Recover unsaved work?',
+        body: [h('p', { style: { margin: 0 } }, `PlanCraft closed before your last changes to "${p.name}" were saved. `,
+          `A copy from ${when} was kept.`),
+        h('p', { class: 'note', style: { margin: 0 } }, 'Recover brings those changes back. Discard opens the project as it was last saved.')],
+        buttons: [{ label: 'Discard', value: 'discard' }, { label: 'Recover', value: 'recover', primary: true }],
+        dismissable: false,
+      });
+      if (choice === 'recover') { p = { ...saved, id: p.id }; recovered = true; }
+    }
+    if (!recovered) dropDraft(id);
+  }
   viewer.resize();
   loadProject(p);
+  if (recovered) { markDirty(); toast('Unsaved work recovered and saved.'); }
 }
 
 window.addEventListener('hashchange', route);
+// heartbeat: tells a desktop-shortcut PlanCraft (started with --idle-exit) that a window is still open
+setInterval(() => fetch('/api/ping?beat=1').catch(() => {}), 30000);
+fetch('/api/ping?beat=1').catch(() => {});
 window.addEventListener('pagehide', saveOnClose);
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveOnClose(); });
 
@@ -442,6 +471,42 @@ async function addPlans(files) {
   const auto = added.filter(p => p.scale?.auto).length;
   const none = added.filter(p => !p.scale).length;
   toast(`Added ${added.length} page(s).${auto ? ` ${auto} took the scale written on the drawing: please check it.` : ''}${none ? ` ${none} need a scale.` : ''}`);
+}
+
+/** Earlier versions of the project (kept automatically) and putting one back. */
+async function showBackups() {
+  if (!S.project) return;
+  const pid = S.project.id;
+  let list;
+  try {
+    await flushSave();
+    list = await api.listBackups(pid);
+  } catch (err) { toast(err.message, 'error'); return; }
+  const pick = { name: null };
+  const rows = list.map(b => {
+    const radio = h('input', { type: 'radio', name: 'backup', value: b.name, onchange: () => { pick.name = b.name; } });
+    return h('label', { class: 'inline', style: { gap: '10px', padding: '4px 0' } }, radio,
+      h('span', { style: { minWidth: '170px' } }, new Date(b.at).toLocaleString()),
+      h('span', { class: 'note' }, `${b.pages} pages, ${b.items} items, ${b.sections} sections${b.beforeRestore ? ' (before a restore)' : ''}`));
+  });
+  const ok = await modal({
+    title: 'Backups',
+    wide: true,
+    body: [
+      h('p', { style: { margin: 0 } }, 'PlanCraft saves by itself as you work, and keeps a copy of the project every 10 minutes (the last 30).'),
+      list.length ? h('div', { class: 'radio-list', style: { maxHeight: '320px', overflow: 'auto' } }, rows)
+        : h('div', { class: 'note' }, 'No backups yet. The first one is made 10 minutes after you start changing this project.'),
+      h('p', { class: 'note', style: { margin: 0 } }, 'Restoring keeps a copy of the current version too, so you can always come back.'),
+    ],
+    buttons: [{ label: 'Close', value: null }, ...(list.length ? [{ label: 'Restore selected', value: true, primary: true }] : [])],
+    validate: () => (pick.name ? null : 'Choose a backup first.'),
+  });
+  if (!ok || S.project?.id !== pid) return;
+  try {
+    const restored = await api.restoreBackup(pid, pick.name);
+    loadProject(restored);
+    toast(`Restored the version from ${new Date(list.find(b => b.name === pick.name).at).toLocaleString()}.`);
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 async function exportExcel() {

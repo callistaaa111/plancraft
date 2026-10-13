@@ -9,6 +9,8 @@ import { addNode, deleteNode, duplicateNode, selectNode } from './tree.js';
 import { scaleDialog, confirmAutoScale } from './scale.js';
 import { deletePage, renamePage } from './pages.js';
 import { copyPage, pastePage, hasClip } from './pageops.js';
+import { openMaterials } from './materials.js';
+import { assemblyFor, itemParts, costing, money } from './pricing.js';
 
 let el = null;
 let A = {};               // actions from main: exportExcel, calibrate, reveal(sec)
@@ -61,6 +63,57 @@ function liveInput(type, value, apply, attrs = {}) {
 
 function setProp(node, key, value) {
   mutate(() => { node.props[key] = value; });
+}
+
+// ---- materials -------------------------------------------------------------------------------------
+const assemblies = () => new Map((S.project.assemblies || []).map(a => [a.id, a]));
+
+/** Assembly picker for an item (empty = use the folder's) or a folder (empty = use the parent folder's). */
+function assemblyField(node) {
+  const isFolder = node.kind === 'folder';
+  const own = isFolder ? node.assembly : node.props?.assembly;
+  const x = ix();
+  const parentId = x.nodes.get(node.id)?.parent?.id;
+  const inherited = parentId ? assemblyFor(parentId, x, assemblies()) : null;
+  const list = S.project.assemblies || [];
+  const sel = h('select', { 'aria-label': 'Assembly' },
+    h('option', { value: '' }, inherited ? `From folder "${inherited.from.name}": ${inherited.assembly.name}` : 'None'),
+    list.map(a => h('option', { value: a.id, selected: a.id === own }, a.name)));
+  sel.addEventListener('change', () => mutate(() => {
+    if (isFolder) node.assembly = sel.value || null;
+    else node.props.assembly = sel.value || null;
+  }));
+  return field(isFolder ? 'Assembly for items in this folder' : 'Assembly (materials)', h('div', { class: 'inline' }, sel,
+    h('button', { class: 'btn small', title: 'Price list and assemblies', onclick: () => openMaterials(list.length ? 'assemblies' : 'prices', own || inherited?.assembly.id) }, 'Edit...')),
+  list.length ? (isFolder ? 'Items inside without their own assembly use this one.' : null)
+    : 'No assemblies yet: press Edit to add materials and make one.');
+}
+
+/** Materials and cost of one item. */
+function itemCost(it) {
+  const x = ix();
+  const a = assemblyFor(it.id, x, assemblies());
+  if (!a) return null;
+  const parts = itemParts(it, qtyOf(it), a.assembly, new Map((S.project.materials || []).map(m => [m.id, m])));
+  const total = parts.reduce((t, p) => t + p.amount, 0);
+  return h('div', { style: { marginTop: '10px' } },
+    h('div', { class: 'section-title' }, `Materials: ${a.assembly.name}`),
+    parts.length ? h('table', { class: 'pp-table' }, h('tbody', null,
+      parts.map(pt => h('tr', { style: { cursor: 'default' } },
+        h('td', null, pt.material.name),
+        h('td', { class: 'n' }, `${fmt(pt.qty)} ${pt.material.unit || ''}`),
+        h('td', { class: 'n' }, money(pt.amount, S.project)))),
+      h('tr', { style: { cursor: 'default' } }, h('td', { style: { fontWeight: 600 } }, 'Total'), h('td'), h('td', { class: 'n', style: { fontWeight: 600 } }, money(total, S.project)))))
+      : h('div', { class: 'note' }, 'This assembly has no parts yet.'));
+}
+
+function costBox(items) {
+  const c = costing(S.project, ix(), qtyOf, items);
+  if (!c.bom.length) return null;
+  return h('div', { class: 'qtybox' },
+    h('div', { class: 'line' }, h('span', null, 'Materials'), h('span', null, money(c.subtotal, S.project))),
+    c.markup ? h('div', { class: 'line' }, h('span', null, `With ${c.markup}% markup`), h('span', null, money(c.total, S.project))) : null,
+    h('div', { class: 'line' }, h('span', null, 'Different materials'), h('span', null, String(c.bom.length))));
 }
 
 // ---- render ----------------------------------------------------------------------------------------
@@ -142,6 +195,7 @@ function itemPanel(it) {
       'Shown as TYPE OF WIRE in the Excel circuit sheet.'),
     field('Allowance %', numInput(p.allowance ?? 0, v => setProp(it, 'allowance', v ?? 0), { min: 0, step: 1 }),
       'Added on top and rounded up, like =ROUNDUP(LM*1.2,0).'),
+    assemblyField(it),
     field('Notes', (() => {
       const t = h('textarea', { rows: 3 }, p.notes || '');
       t.addEventListener('change', () => setProp(it, 'notes', t.value));
@@ -180,7 +234,8 @@ function itemQty(it) {
         },
         h('td', null, pg.name),
         h('td', { class: 'n' }, scaled ? `${fmt(e.qty, dp)} ${q.unit}` : 'no scale'));
-      })))) : null);
+      })))) : null,
+    itemCost(it));
 }
 
 // ---- folder ----------------------------------------------------------------------------------------
@@ -189,6 +244,7 @@ function folderPanel(f) {
     head('Folder', 'folder', f.name),
     folderQty(f),
     field('Name', input(f.name, v => { if (v.trim()) mutate(() => { f.name = v.trim(); }); })),
+    assemblyField(f),
     h('div', { class: 'section-title' }, 'Add to this folder'),
     h('div', { class: 'btn-row' },
       h('button', { class: 'btn small', onclick: () => addNode('linear'), html: `${icon('linear')}<span>Linear</span>` }),
@@ -207,9 +263,11 @@ function folderQty(f) {
     const q = qtyOf(it);
     byUnit.set(q.unit, (byUnit.get(q.unit) || 0) + q.qty);
   }
-  return h('div', { 'data-dyn': '', class: 'qtybox' },
-    h('div', { class: 'line' }, h('span', null, 'Items'), h('span', null, String(items.length))),
-    [...byUnit].map(([unit, v]) => h('div', { class: 'line' }, h('span', null, `Total ${unit}`), h('span', null, `${fmt(v, unit === 'ea' ? 0 : 2)} ${unit}`))));
+  return h('div', { 'data-dyn': '' },
+    h('div', { class: 'qtybox' },
+      h('div', { class: 'line' }, h('span', null, 'Items'), h('span', null, String(items.length))),
+      [...byUnit].map(([unit, v]) => h('div', { class: 'line' }, h('span', null, `Total ${unit}`), h('span', null, `${fmt(v, unit === 'ea' ? 0 : 2)} ${unit}`)))),
+    costBox(items));
 }
 
 // ---- page & project ----------------------------------------------------------------------------------
@@ -271,11 +329,18 @@ function projectPanel() {
       h('span', null, 'Takeoff sections'), h('span', null, String(secs)),
       p.importedFrom ? [h('span', null, 'Imported from'), h('span', { title: p.importedFrom, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' } }, p.importedFrom)] : null),
     field('Units', unitsSel),
+    h('div', { class: 'field' }, h('div', { class: 'label' }, 'Materials & prices'),
+      costBox(x.items) || h('div', { class: 'note' }, 'Add a price list and assemblies to get a bill of materials and costs.'),
+      h('div', { class: 'field-row', style: { marginTop: '6px' } },
+        h('div', null, h('div', { class: 'hint' }, 'Currency'), input(p.settings.currency ?? '₱', v => mutate(() => { p.settings.currency = v.trim(); }), { maxlength: 4 })),
+        h('div', null, h('div', { class: 'hint' }, 'Markup %'), numInput(p.settings.markup ?? 0, v => mutate(() => { p.settings.markup = v ?? 0; }), { min: 0, step: 1 }))),
+      h('button', { class: 'btn small', style: { marginTop: '6px' }, onclick: () => openMaterials(), html: `${icon('tag')}<span>Materials & prices...</span>` })),
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Default allowance % for new items'),
       h('div', { class: 'field-row', style: { gridTemplateColumns: '1fr 1fr 1fr' } },
         h('div', null, h('div', { class: 'hint' }, 'Linear'), allowInput('linear')),
         h('div', null, h('div', { class: 'hint' }, 'Area'), allowInput('area')),
         h('div', null, h('div', { class: 'hint' }, 'Count'), allowInput('count')))),
     h('button', { class: 'btn primary', onclick: () => A.exportExcel?.(), html: `${icon('excel')}<span>Export to Excel</span>` }),
-    h('p', { class: 'note', style: { margin: 0 } }, 'The workbook has a summary of every item, quantities by page, a PANEL circuit sheet (for items named like PANEL-1) and the page scales.'));
+    h('button', { class: 'btn small', onclick: () => A.backups?.(), title: 'Earlier versions of this project, saved automatically', html: `${icon('undo')}<span>Backups...</span>` }),
+    h('p', { class: 'note', style: { margin: 0 } }, 'The workbook has a summary of every item, quantities by page, a PANEL circuit sheet (for items named like PANEL-1), the bill of materials with costs, and the page scales.'));
 }

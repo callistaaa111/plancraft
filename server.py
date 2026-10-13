@@ -45,6 +45,7 @@ mimetypes.add_type("image/svg+xml", ".svg")
 class Api(BaseHTTPRequestHandler):
     server_version = "PlanCraft/1.0"
     store: Store = None  # set in main()
+    last_beat = 0.0      # last heartbeat from an open window (for --idle-exit)
 
     # ---- plumbing -----------------------------------------------------------------------------------
     def log_message(self, fmt, *args):
@@ -150,6 +151,8 @@ class Api(BaseHTTPRequestHandler):
         parts = [p for p in path.split("/") if p]
 
         if parts == ["ping"]:
+            if q.get("beat"):
+                Api.last_beat = time.time()          # an open PlanCraft window says hello
             return self.send_json({"app": "PlanCraft"})
 
         if parts == ["projects"]:
@@ -166,6 +169,15 @@ class Api(BaseHTTPRequestHandler):
             task = tasks.start("swiftjob", importers.import_swiftjob, tmp, st, name, q.get("filename"),
                                cleanup=lambda: tmp.unlink(missing_ok=True))
             return self.send_json({"task": task.id}, 202)
+
+        if parts == ["pricelist", "parse"] and method == "POST":     # read a supplier price list
+            import pricelist
+            filename = q.get("filename") or "prices.xlsx"
+            tmp = self.read_to_temp(Path(filename).suffix or ".xlsx")
+            try:
+                return self.send_json(pricelist.parse(tmp, filename))
+            finally:
+                tmp.unlink(missing_ok=True)
 
         if parts[:1] == ["tasks"] and len(parts) == 2 and method == "GET":
             t = tasks.get(parts[1])
@@ -188,6 +200,10 @@ class Api(BaseHTTPRequestHandler):
                     return self.send_json({"ok": True})
             if rest == ["save"] and method == "POST":           # navigator.sendBeacon on page close
                 return self.send_json(st.save(pid, self.read_json()))
+            if rest == ["backups"] and method == "GET":
+                return self.send_json(st.backups(pid))
+            if rest == ["restore"] and method == "POST":
+                return self.send_json(st.restore(pid, self.read_json().get("name")))
             if rest == ["thumb.jpg"] and method == "GET":
                 return self.send_file(st.thumbnail(pid), cache="no-cache")
             if rest == ["pages", "crop"] and method == "POST":     # new page from an area of a page
@@ -272,6 +288,31 @@ def cli_import(args, store: Store):
     print(json.dumps({"projectId": pid, "pages": len(res["pages"])}, indent=2))
 
 
+def open_window(url: str, app: bool) -> None:
+    """Open PlanCraft: in its own Edge / Chrome app window (no tabs or address bar) when asked, else a browser tab."""
+    if app and sys.platform == "win32":
+        import subprocess
+        roots = [os.environ.get(k, "") for k in ("ProgramFiles(x86)", "ProgramFiles", "LOCALAPPDATA")]
+        for exe in (r"Microsoft\Edge\Application\msedge.exe", r"Google\Chrome\Application\chrome.exe"):
+            for r in roots:
+                path = Path(r) / exe
+                if r and path.is_file():
+                    subprocess.Popen([str(path), f"--app={url}"], close_fds=True)
+                    return
+    webbrowser.open(url)
+
+
+def quiet_console(data_dir: str) -> None:
+    """Started without a console (pythonw, desktop shortcut): send output and errors to data/plancraft.log."""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    Path(data_dir).mkdir(parents=True, exist_ok=True)
+    log = open(Path(data_dir) / "plancraft.log", "a", encoding="utf-8", buffering=1)
+    log.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} PlanCraft started ---\n")
+    sys.stdout = sys.stdout or log
+    sys.stderr = sys.stderr or log
+
+
 def already_running(port) -> bool:
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/ping", timeout=1) as r:
@@ -287,10 +328,14 @@ def main(argv=None):
     ap.add_argument("--port", type=int, default=int(os.environ.get("PLANCRAFT_PORT", DEFAULT_PORT)))
     ap.add_argument("--data", default=os.environ.get("PLANCRAFT_DATA", str(APP_DIR / "data")))
     ap.add_argument("--open", action="store_true", help="open the app in the browser")
+    ap.add_argument("--app", action="store_true", help="open it in its own app window (Edge or Chrome)")
+    ap.add_argument("--idle-exit", type=int, default=0, metavar="SECONDS",
+                    help="stop when no PlanCraft window has been open for this long (for the desktop shortcut)")
     ap.add_argument("--name")
     ap.add_argument("--dpi", type=float, default=200)
     args = ap.parse_args(argv)
 
+    quiet_console(args.data)
     store = Store(args.data)
     if args.command == "import":
         if not args.file:
@@ -301,7 +346,7 @@ def main(argv=None):
     if already_running(args.port):
         print(f"PlanCraft is already running at {url}")
         if args.open:
-            webbrowser.open(url)
+            open_window(url, args.app)
         return
     Api.store = store
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Api)
@@ -309,7 +354,18 @@ def main(argv=None):
     print(f"PlanCraft is running at {url}  (projects in {store.root})")
     print("Keep this window open while you work. Press Ctrl+C to stop.")
     if args.open:
-        threading.Timer(0.6, lambda: webbrowser.open(url)).start()
+        threading.Timer(0.6, lambda: open_window(url, args.app)).start()
+    if args.idle_exit:
+        def watch():
+            # open windows send a heartbeat every 30 s; once none has for idle_exit seconds, stop
+            Api.last_beat = time.time() + 60          # give the window time to open
+            while True:
+                time.sleep(15)
+                if time.time() - Api.last_beat > args.idle_exit and not tasks.busy():
+                    print("No PlanCraft window open any more: stopping.", flush=True)
+                    httpd.shutdown()
+                    return
+        threading.Thread(target=watch, daemon=True, name="idle-exit").start()
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

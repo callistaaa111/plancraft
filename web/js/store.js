@@ -1,6 +1,7 @@
 // App state, undo/redo, autosave and takeoff-tree helpers.
 import { uid, debounce } from './util.js';
 import * as api from './api.js';
+import { putDraft, dropDraft } from './recovery.js';
 import { itemQuantities } from './measure.js';
 
 const listeners = {};
@@ -81,6 +82,8 @@ export function loadProject(p) {
   p.pages ||= [];
   p.tree ||= [];
   p.marks ||= [];
+  p.materials ||= [];
+  p.assemblies ||= [];
   p.settings ||= {};
   p.settings.allowance ||= { linear: 20, area: 0, count: 0 };
   p.units ||= 'metric';
@@ -108,7 +111,10 @@ export function closeProject() {
 // ---- changes & history -----------------------------------------------------------------------------
 const snap = () => {
   const p = S.project;
-  return JSON.stringify({ name: p.name, units: p.units, settings: p.settings, notes: p.notes, pages: p.pages, tree: p.tree, marks: p.marks });
+  return JSON.stringify({
+    name: p.name, units: p.units, settings: p.settings, notes: p.notes, pages: p.pages, tree: p.tree, marks: p.marks,
+    materials: p.materials, assemblies: p.assemblies,
+  });
 };
 const restore = str => Object.assign(S.project, JSON.parse(str));
 
@@ -200,6 +206,7 @@ export function setTool(tool) {
 
 // ---- autosave --------------------------------------------------------------------------------------
 const saveSoon = debounce(() => saveNow(), 700);
+const draftSoon = debounce(() => { if (S.project && S.save.dirty) putDraft(S.project); }, 150);
 let saving = null;
 
 function setSaveState(state, error = null) {
@@ -212,8 +219,12 @@ function scheduleSave() {
   if (!S.project) return;
   S.save.dirty = true;
   if (S.save.state !== 'error') setSaveState('pending');
+  draftSoon();          // crash copy in the browser first, then the real save
   saveSoon();
 }
+
+/** Mark the open project as changed so it gets saved (used after recovering unsaved work). */
+export function markDirty() { scheduleSave(); }
 
 export async function saveNow() {
   if (saving) await saving;
@@ -222,7 +233,10 @@ export async function saveNow() {
   setSaveState('saving');
   const pid = S.project.id;
   saving = api.saveProject(pid, S.project)
-    .then(() => setSaveState(S.save.dirty ? 'pending' : 'saved'))
+    .then(() => {
+      setSaveState(S.save.dirty ? 'pending' : 'saved');
+      if (!S.save.dirty) { draftSoon.cancel(); dropDraft(pid); }     // on disk now: the crash copy is not needed
+    })
     .catch(err => {
       S.save.dirty = true;
       setSaveState('error', err.message);

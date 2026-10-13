@@ -21,6 +21,8 @@ export const createProject = (name, units) => req('POST', '/api/projects', { nam
 export const getProject = id => req('GET', `/api/projects/${encodeURIComponent(id)}`);
 export const saveProject = (id, project) => req('PUT', `/api/projects/${encodeURIComponent(id)}`, project);
 export const deleteProject = id => req('DELETE', `/api/projects/${encodeURIComponent(id)}`);
+export const listBackups = id => req('GET', `/api/projects/${encodeURIComponent(id)}/backups`);
+export const restoreBackup = (id, name) => req('POST', `/api/projects/${encodeURIComponent(id)}/restore`, { name });
 export const getTask = id => req('GET', `/api/tasks/${encodeURIComponent(id)}`);
 
 export const cropPage = (id, image, rect) => req('POST', `/api/projects/${encodeURIComponent(id)}/pages/crop`, { image, rect });

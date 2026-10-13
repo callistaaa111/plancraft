@@ -10,6 +10,7 @@ import math
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -285,6 +286,81 @@ class VisionTests(unittest.TestCase):
             self.assertEqual((r, g, b, a), (0, 150, 60, 255))
 
 
+class PricingTests(unittest.TestCase):
+    def project(self):
+        materials = [
+            {"id": "w", "name": "3.5 mm2 THHN wire", "unit": "m", "price": 25, "category": "Wires"},
+            {"id": "c", "name": "20 mm PVC conduit (3 m)", "unit": "pc", "price": 90, "category": "Conduits", "whole": True},
+            {"id": "b", "name": "Junction box", "unit": "pc", "price": 40, "category": "Boxes"},
+        ]
+        assemblies = [
+            {"id": "lc", "name": "Lighting circuit", "parts": [
+                {"id": "1", "material": "w", "factor": 2, "basis": "qtyAllow"},
+                {"id": "2", "material": "c", "factor": 1, "basis": "qty", "pack": 3},
+            ]},
+            {"id": "jb", "name": "Junction box", "parts": [{"id": "3", "material": "b", "factor": 1, "basis": "qty"}]},
+        ]
+        tree = [
+            {"id": "f", "kind": "folder", "name": "Lighting", "assembly": "lc", "children": [
+                _item("linear", "LP1-1", [{"page": "p1", "points": [[0, 0], [100, 0]]}], allowance=20),   # 10 m
+                _item("linear", "LP1-2", [{"page": "p1", "points": [[0, 0], [0, 45]]}], allowance=20),   # 4.5 m
+                _item("count", "JB", [{"page": "p1", "points": [[1, 1], [2, 2], [3, 3]]}], assembly="jb"),
+            ]},
+            _item("linear", "No materials", [{"page": "p1", "points": [[0, 0], [10, 0]]}]),
+        ]
+        return {"name": "T", "units": "metric", "pages": [{"id": "p1", "scale": {"pxPerM": 10}}], "tree": tree,
+                "materials": materials, "assemblies": assemblies, "settings": {"markup": 10, "currency": "P"}}
+
+    def test_bill_of_materials(self):
+        import pricing
+        c = pricing.costing(self.project())
+        bom = {b["material"]["id"]: b for b in c["bom"]}
+        # wire: 2 x ROUNDUP(10*1.2) + 2 x ROUNDUP(4.5*1.2) = 2 x 12 + 2 x 6 = 36 m
+        self.assertAlmostEqual(bom["w"]["qty"], 36)
+        # conduit: (10 + 4.5) / 3 = 4.83 -> 5 whole pieces
+        self.assertAlmostEqual(bom["c"]["raw"], 14.5 / 3)
+        self.assertEqual(bom["c"]["qty"], 5)
+        self.assertEqual(bom["b"]["qty"], 3)                              # the count item uses its own assembly
+        self.assertAlmostEqual(c["subtotal"], 36 * 25 + 5 * 90 + 3 * 40)
+        self.assertAlmostEqual(c["total"], c["subtotal"] * 1.1)
+        self.assertNotIn("No materials", [ln["item"]["name"] for ln in c["lines"]])
+
+    def test_export_has_bill_of_materials(self):
+        import openpyxl
+        wb = openpyxl.load_workbook(io.BytesIO(export_xlsx.build(self.project())))
+        self.assertIn("Bill of Materials", wb.sheetnames)
+        self.assertIn("Materials by Item", wb.sheetnames)
+        ws = wb["Bill of Materials"]
+        names = [ws.cell(r, 2).value for r in range(5, 8)]
+        self.assertEqual(sorted(names), sorted(["3.5 mm2 THHN wire", "20 mm PVC conduit (3 m)", "Junction box"]))
+        self.assertEqual(ws["F5"].value, "=D5*E5")
+        self.assertEqual(ws["E8"].value, "Subtotal")
+
+    def test_price_list_import(self):
+        import openpyxl
+        import pricelist
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "prices.xlsx"
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.append(["ABC Electrical Supply - price list"])
+            ws.append([])
+            ws.append(["ITEM NO.", "DESCRIPTION", "UNIT", "UNIT PRICE"])
+            ws.append([None, "WIRES", None, None])
+            ws.append([1, "3.5mm2 THHN wire", "m", 25.5])
+            ws.append([2, "5.5mm2 THHN wire", "m", "₱38.00"])
+            ws.append([None, "BOXES", None, None])
+            ws.append([3, "Junction box 4x4", "pc", 45])
+            wb.save(path)
+            res = pricelist.parse(path, "prices.xlsx")
+            self.assertEqual([(r["name"], r["unit"], r["price"], r["category"]) for r in res["rows"]], [
+                ("3.5mm2 THHN wire", "m", 25.5, "WIRES"), ("5.5mm2 THHN wire", "m", 38.0, "WIRES"),
+                ("Junction box 4x4", "pc", 45.0, "BOXES")])
+            csv_path = Path(tmp) / "prices.csv"
+            csv_path.write_text("Material,Unit,Price\nPVC conduit 20mm,pc,90\nPVC elbow,pc,12.5\n", encoding="utf-8")
+            self.assertEqual(len(pricelist.parse(csv_path, "prices.csv")["rows"]), 2)
+
+
 class ExportTests(unittest.TestCase):
     def test_workbook_sheets_and_circuits(self):
         import openpyxl
@@ -346,6 +422,29 @@ class ApiTests(unittest.TestCase):
         self.assertIn(p["id"], [x["id"] for x in self.call("GET", "/api/projects")[1]])
         self.assertEqual(self.call("DELETE", f"/api/projects/{p['id']}")[0], 200)
         self.assertEqual(self.call("GET", f"/api/projects/{p['id']}")[0], 404)
+
+    def test_backups_and_restore(self):
+        import store as store_mod
+        st, p = self.call("POST", "/api/projects", {"name": "Backup test"})
+        old_every = store_mod.BACKUP_EVERY_S
+        store_mod.BACKUP_EVERY_S = 0                       # back up on every save for this test
+        try:
+            for name in ("v1", "v2", "v3"):
+                p["name"] = name
+                self.assertEqual(self.call("PUT", f"/api/projects/{p['id']}", p)[0], 200)
+                time.sleep(1.05)                           # backups are named by the second
+        finally:
+            store_mod.BACKUP_EVERY_S = old_every
+        st, backups = self.call("GET", f"/api/projects/{p['id']}/backups")
+        self.assertGreaterEqual(len(backups), 3)           # the empty start, v1 and v2
+        v1 = next(b for b in backups if b["items"] == 0 and b["saved"]) if backups else None
+        st, restored = self.call("POST", f"/api/projects/{p['id']}/restore", {"name": backups[1]["name"]})
+        self.assertEqual(st, 200)
+        self.assertEqual(restored["name"], "v1")
+        st, after = self.call("GET", f"/api/projects/{p['id']}/backups")
+        self.assertTrue(any(b["beforeRestore"] for b in after))   # the version before restoring is kept too
+        self.assertEqual(self.call("POST", f"/api/projects/{p['id']}/restore", {"name": "../project.json"})[0], 404)
+        self.assertIsNotNone(v1)
 
     def test_crop_and_copy_page_images(self):
         from PIL import Image

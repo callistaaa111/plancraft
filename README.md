@@ -4,14 +4,28 @@ A free, offline takeoff app that works like PlanSwift and runs in your browser.
 Open plans, set the scale, click out counts, lengths and areas, and export the quantities to Excel.
 It also opens your existing PlanSwift `.SwiftJob` files, including their pages, scales and takeoff.
 
-## Start it
+## Install and start
 
-Double-click **`PlanCraft.bat`**. The first time, it installs the Python libraries it needs
-(PyMuPDF, Pillow, openpyxl, OpenCV, numpy), which needs internet. After that it runs offline. PlanCraft opens in your browser at
-<http://127.0.0.1:8791/>. Keep the black window open while you work; close it to stop PlanCraft.
+1. Put the `plancraft` folder somewhere permanent (for example Documents), not in Downloads.
+2. Double-click **`Install PlanCraft.bat`**. It checks for Python 3 (and offers to install it if it is missing),
+   installs the libraries PlanCraft needs (PyMuPDF, Pillow, openpyxl, OpenCV, numpy; needs internet once), and adds a
+   **PlanCraft** icon to your Desktop and Start menu.
+3. Start PlanCraft from that icon. It opens in its own window (Edge or Chrome app mode) with no console, and stops by
+   itself about 10 minutes after you close the window.
 
-Projects are saved automatically to `data/projects/` in this folder: one folder per project with
-`project.json`, the page images and timed backups. Deleted projects go to `data/trash/`.
+`Uninstall PlanCraft.bat` removes the shortcuts (your projects stay). You can also still start it with
+**`PlanCraft.bat`**, which shows a console window and opens PlanCraft in a normal browser tab at
+<http://127.0.0.1:8791/>.
+
+## Saving and recovery
+
+There is no Save button. PlanCraft saves about a second after every change, and each project is a folder in
+`data/projects/` (`project.json`, the page images and backups). Deleted projects go to `data/trash/`.
+
+- **Crash recovery:** every change is also kept in the browser right away. If PlanCraft, the browser or the PC goes
+  down before a change reaches the disk, the next time you open the project PlanCraft offers to recover it.
+- **Backups:** a copy of the project is kept every 10 minutes (the last 30). Use **Backups...** in the project panel to
+  restore one. The version you replace is kept as a backup too.
 
 ## Getting plans in
 
@@ -97,6 +111,24 @@ The Takeoff list has two views. **All pages** shows every item with its total. *
 have takeoff on the open page, with their quantity on that page. The panel on the right shows the selected item's
 quantity, its allowance and its quantity on each page.
 
+## Materials and pricing
+
+Open **Materials** (top bar) to set up:
+
+- **Price list:** materials with category, unit and price. Tick **Whole** for things sold in whole units (conduit
+  lengths, boxes) so totals round up. **Import from Excel / CSV** reads a supplier price list. It finds the
+  description, unit and price columns, uses heading lines as categories, and updates prices of materials you
+  already have.
+- **Assemblies:** recipes of materials. Each part says: material quantity = number x what it is based on ÷ pack.
+  For example, a lighting circuit is 2 x its quantity + allowance of 3.5 mm² wire (two conductors), plus 1 x its
+  quantity ÷ 3 of 20 mm conduit (3 m pieces). The bases are the item's quantity, its quantity plus allowance,
+  perimeter, wall area, volume, or 1 per item.
+
+Pick the assembly for an item, or for a whole folder (items inside use it unless they have their own), in the right-hand
+panel. The panel then shows each item's materials and cost, the folder and project totals, and the currency and
+markup %. The Excel export gets a **Bill of Materials** sheet (quantities, prices, amounts, subtotal, markup and total
+as live formulas) and a **Materials by Item** sheet.
+
 ## Excel export
 
 **Export Excel** downloads a workbook with:
@@ -107,6 +139,7 @@ quantity, its allowance and its quantity on each page.
 - **Circuits**: the `PANEL:` layout (`CKT NO | DESCRIPTION | LM | LM (*20%) | TYPE OF WIRE`) for linear items
   named like `LP1-3` or `PPA2-12`, plus the **OTHERS** device counts. The item's *Spec* fills
   TYPE OF WIRE.
+- **Bill of Materials** and **Materials by Item**: when items have assemblies (see above).
 - **Notes**: every note written on the plans, with its page.
 - **Pages**: every page with its scale, so you can see which pages are not scaled.
 
