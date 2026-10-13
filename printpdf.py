@@ -384,7 +384,7 @@ def build(task, project: dict, project_dir: Path, opts: dict, out_path: Path) ->
 def clean_exports(folder: Path, keep_s: int = 6 * 3600) -> None:
     if not folder.is_dir():
         return
-    for f in folder.glob("*.pdf"):
+    for f in [*folder.glob("*.pdf"), *folder.glob("*.SwiftJob"), *folder.glob("*.part")]:
         if time.time() - f.stat().st_mtime > keep_s:
             f.unlink(missing_ok=True)
 

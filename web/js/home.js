@@ -72,6 +72,7 @@ function card(p) {
         { label: 'Open', icon: 'page', action: open },
         { label: 'Rename', icon: 'rename', action: () => rename(p) },
         { label: 'Export to Excel', icon: 'excel', action: () => A.exportProject(p.id) },
+        { label: 'Export as PlanSwift job', icon: 'job', action: () => A.exportSwiftJob(p.id) },
         'sep',
         { label: 'Delete project', icon: 'trash', danger: true, action: () => remove(p) },
       ]);

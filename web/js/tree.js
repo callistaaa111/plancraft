@@ -33,6 +33,7 @@ export function initTree(container, filterInput, actions = {}) {
   on('page', () => { if (S.qtyScope === 'page' || S.project) render(); });
   on('scope', render);
   on('load', () => { filter = ''; filterInput.value = ''; render(); });
+  on('draft', showDraft);
 }
 
 function qtyFor(item) {
@@ -42,6 +43,23 @@ function qtyFor(item) {
 }
 
 const fmtQ = (item, v) => (item.type === 'count' ? fmt(v, 0) : fmt(v, 2));
+
+let draftRow = null;   // id of the row showing a running total
+/** Running total on the row of the item being drawn; the row goes back to its saved total afterwards. */
+function showDraft(d) {
+  if (draftRow && draftRow !== d?.itemId) setRowQty(draftRow, 0);
+  draftRow = d?.itemId || null;
+  if (d) setRowQty(d.itemId, d.qty);
+}
+
+function setRowQty(id, add) {
+  const n = nodeById(id);
+  const row = el?.querySelector(`.row[data-id="${CSS.escape(id)}"]`);
+  const q = row?.querySelector('.qty');
+  if (!n || !q) return;
+  q.textContent = fmtQ(n, qtyFor(n) + add);
+  row.classList.toggle('drawing', !!add);
+}
 
 export function render() {
   if (!el || !S.project || renaming) return;
@@ -78,6 +96,7 @@ export function render() {
         : 'No takeoff items yet. Press Takeoff in the toolbar and pick Linear, Area or Count, then click on the plan.'));
   }
   el.replaceChildren(...rows);
+  if (S.draftQty) setRowQty(S.draftQty.itemId, S.draftQty.qty);   // keep a running total across redraws
   if (S.sel?.id && S.sel.id !== lastSel) {
     el.querySelector(`.row[data-id="${CSS.escape(S.sel.id)}"]`)?.scrollIntoView({ block: 'nearest' });
   }

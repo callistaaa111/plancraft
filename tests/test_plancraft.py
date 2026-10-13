@@ -460,6 +460,52 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(wc["D5"].value, "=ROUNDUP(C5*1.2,0)")
         self.assertEqual((wc["G4"].value, wc["H4"].value), ("EXIT SIGN", 2))
 
+    def test_swiftjob_round_trip(self):
+        import zipfile
+        from PIL import Image
+        import export_swiftjob
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            (d / "pages").mkdir()
+            Image.new("RGB", (400, 300), "white").save(d / "pages" / "a.png")
+            Image.new("L", (200, 100), 255).save(d / "pages" / "b.png")
+            pages = [{"id": "p1", "name": "GF <power>", "image": "a.png", "dpi": 150, "group": "Plans/Level 1",
+                      "scale": {"pxPerM": 10}},
+                     {"id": "p2", "name": "Roof", "image": "b.png", "dpi": 150, "scale": None}]
+            tree = [{"id": "f", "kind": "folder", "name": "Power & lights", "children": [
+                        _item("linear", "LP1-1", [{"page": "p1", "points": [[0, 0], [100, 0], [100, 50]]}], height=3),
+                        _item("count", "Lights", [{"page": "p1", "points": [[5, 5], [9, 9]]},
+                                                  {"page": "p2", "points": [[1, 1]]}], shape="diamond")]},
+                    _item("area", "Slab", [{"page": "p1", "points": [[0, 0], [100, 0], [100, 100], [0, 100]]},
+                                           {"page": "p1", "points": [[0, 0], [10, 0], [10, 10]], "deduct": True}],
+                          depth=0.15, unit="mm")]
+            project = {"name": "Round trip", "units": "ft", "pages": pages, "tree": tree}
+            out = d / "job.SwiftJob"
+            res = export_swiftjob.build(_Task(), project, d, out)
+            self.assertEqual((res["pages"], res["items"], res["deducts"]), (2, 4, 1))
+            with zipfile.ZipFile(out) as z:
+                tiffs = [n for n in z.namelist() if n.endswith(".tiff")]
+                self.assertEqual(len(tiffs), 2)
+                self.assertTrue(tiffs[0].startswith("Pages/Plans/Level 1/GF _power_/{"))
+                with Image.open(io.BytesIO(z.read(tiffs[1]))) as im:
+                    self.assertEqual((im.mode, im.size, im.info.get("compression")), ("RGB", (200, 100), "packbits"))
+            job = importers.read_swiftjob(out)
+            self.assertEqual(job["units"], "ft")
+            self.assertEqual([(p["name"], p["group"]) for p in job["pages"]], [("GF <power>", "Plans/Level 1"), ("Roof", "")])
+            self.assertAlmostEqual(job["pages"][0]["scale"]["pxPerM"], 10)
+            self.assertIsNone(job["pages"][1]["scale"])
+            folder, slab, cut = job["tree"]
+            self.assertEqual(folder["name"], "Power & lights")
+            lp, lights = folder["children"]
+            pg = {p["id"]: p for p in job["pages"]}
+            self.assertAlmostEqual(measure.item_quantities(lp, pg, "m")["qty"], 15)          # 150 px at 10 px/m
+            self.assertEqual(lp["props"]["height"], 3)
+            self.assertEqual(lp["color"], "#ff0000")
+            self.assertEqual((measure.item_quantities(lights, pg)["qty"], lights["props"]["shape"]), (2 + 1, "diamond"))
+            self.assertEqual(slab["name"], "Slab")
+            self.assertAlmostEqual(measure.item_quantities(slab, pg, "m")["qty"], 100)        # 10 m x 10 m
+            self.assertEqual((cut["name"], len(cut["sections"])), ("Slab (deduct)", 1))
+
 
 class ApiTests(unittest.TestCase):
     @classmethod

@@ -387,3 +387,7 @@ kbd { font: 11.5px var(--font); padding: 1px 5px; border: 1px solid var(--border
 /* windows move by their title bar */
 .modal header { cursor: move; -webkit-user-select: none; user-select: none; touch-action: none; }
 .modal header.dragging { cursor: grabbing; }
+
+/* running totals while a line or area is being drawn */
+.qtybox .big.drawing, .tree .row.drawing .qty { color: var(--accent); }
+.qtybox .draft-line span:last-child { color: var(--accent); font-weight: 600; }

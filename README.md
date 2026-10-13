@@ -153,9 +153,18 @@ Takeoff, notes and the legend are drawn as vector graphics, so they stay sharp a
 print from the original vector drawing (PlanCraft keeps a copy of the PDF in the project), and other pages (images,
 PlanSwift jobs) print from their full-resolution image. **Smaller file** uses JPEG for those images.
 
+## Export to PlanSwift
+
+**Export > PlanSwift job (.SwiftJob)** (also in a project's **...** menu on the Projects screen) saves the project as
+a job that opens in PlanSwift: every page as a TIFF in its page folders, with its scale, and the takeoff folders and
+items with their colours, descriptions, heights / depths, count shapes and every section's points. PlanSwift works out
+the quantities from the points, so they match PlanCraft's. Cut-out areas go in as a separate item named
+"... (deduct)", because PlanSwift has no cut-out flag a file can set; notes, highlights, materials and prices stay in
+PlanCraft.
+
 ## Excel export
 
-**Export Excel** downloads a workbook with:
+**Export > Excel summary** downloads a workbook with:
 
 - **Summary**: every item with folder, type, description, spec, quantity, unit, allowance %, and
   `QTY + ALLOW` (a live `ROUNDUP` formula).

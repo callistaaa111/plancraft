@@ -1,6 +1,6 @@
 // The plan viewer: draws the page and the takeoff, and handles drawing / editing on it.
 import {
-  S, on, ix, mutate, beginTx, live, commitTx, pageById, nodeById, currentPage, selectedItem, select, setTool,
+  S, on, ix, mutate, beginTx, live, commitTx, pageById, nodeById, currentPage, selectedItem, select, setTool, emit,
 } from './store.js';
 import * as M from './measure.js';
 import { pageUrl } from './api.js';
@@ -285,6 +285,7 @@ export class Viewer {
     this.drawTakeoff(page);
     if (this.pulse() > 0) this.render(); // keep animating until the pulse fades
     this.drawDraft(page);
+    this.emitDraft(page);
     this.drawCrop(page);
     for (const x of this.ext) x.drawOver?.(ctx, page);
     this.updateStatus(page);
@@ -645,6 +646,28 @@ export class Viewer {
   clearCrop() {
     this.cropRect = null;
     this.render();
+  }
+
+  /** Quantity of the line or area being drawn (up to the cursor), in the item's unit; null when not drawing one. */
+  draftQty(page) {
+    const d = this.draft;
+    if (!d || d.kind !== 'takeoff' || !d.pts.length || (d.type !== 'linear' && d.type !== 'area')) return null;
+    const it = nodeById(d.itemId);
+    if (!it) return null;
+    const pts = this.cursorPt && !this.drag ? d.pts.concat([this.cursorPt]) : d.pts;
+    const units = M.itemUnits(it, S.project.units);
+    const q = d.type === 'area' ? (pts.length >= 3 ? M.areaOf(M.polyArea(pts), page, units) : 0) : M.lengthOf(M.polyLength(pts), page, units);
+    return q == null ? null : { itemId: it.id, qty: d.deduct ? -q : q };
+  }
+
+  /** The Takeoff list and the properties panel show running totals while a line or area is drawn. */
+  emitDraft(page) {
+    const v = this.draftQty(page);
+    const key = v ? `${v.itemId}:${v.qty.toFixed(4)}` : '';
+    if (key === this.lastDraftKey) return;
+    this.lastDraftKey = key;
+    S.draftQty = v;
+    emit('draft', v);
   }
 
   liveText(page) {
