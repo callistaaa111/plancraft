@@ -1,11 +1,11 @@
 // The Takeoff list: folders and items with their quantities.
 import {
   S, on, ix, mutate, select, setTool, qtyOf, nodeById, moveNode, removeNode, insertNode, insertionPoint, newItem,
-  newFolder, uniqueName, cloneNode, descendantItems, listOf, parentIdOf,
+  newFolder, uniqueName, cloneNode, descendantItems, listOf, parentIdOf, PALETTE,
 } from './store.js';
 import { h, fmt } from './util.js';
 import { icon } from './icons.js';
-import { openMenu, confirmBox } from './dialogs.js';
+import { openMenu, confirmBox, modal } from './dialogs.js';
 
 const TYPE_NAME = { linear: 'Linear', area: 'Area', count: 'Count' };
 let el = null;
@@ -46,14 +46,16 @@ const fmtQ = (item, v) => (item.type === 'count' ? fmt(v, 0) : fmt(v, 2));
 export function render() {
   if (!el || !S.project || renaming) return;
   const x = ix();
-  // "This page" shows only items with takeoff on the open page (and the selected one, so a new item stays visible)
+  // "This page" shows only items with takeoff on the open page (and a selected item or folder that has no takeoff
+  // anywhere yet, so a new one stays visible; one selected on another page is not carried over)
   const pageOnly = S.qtyScope === 'page';
   const keep = new Set();
   if (filter || pageOnly) {
     const textHit = n => !filter || n.name.toLowerCase().includes(filter) || (n.props?.description || '').toLowerCase().includes(filter);
     const onPage = n => !pageOnly || qtyOf(n).perPage.has(S.pageId);
+    const isNew = n => (n.kind === 'folder' ? !descendantItems(n).some(i => i.sections.length) : !n.sections?.length);
     const walk = list => list.reduce((any, n) => {
-      const hit = n.id === S.sel?.id || (n.kind === 'folder'
+      const hit = (n.id === S.sel?.id && isNew(n)) || (n.kind === 'folder'
         ? walk(n.children) || (!pageOnly && textHit(n))
         : textHit(n) && onPage(n));
       if (hit) keep.add(n.id);
@@ -73,7 +75,7 @@ export function render() {
   if (!rows.length) {
     rows.push(h('div', { class: 'empty-note' }, filter ? 'No items match your search.'
       : pageOnly && x.items.length ? 'No takeoff on this page yet. Pick an item and click on the plan, or switch to "All pages".'
-        : 'No takeoff items yet. Use + Linear, + Area or + Count above, then click on the plan.'));
+        : 'No takeoff items yet. Press Takeoff in the toolbar and pick Linear, Area or Count, then click on the plan.'));
   }
   el.replaceChildren(...rows);
   if (S.sel?.id && S.sel.id !== lastSel) {
@@ -144,16 +146,58 @@ export function selectNode(id, { takeoff = true } = {}) {
   if (n.kind === 'item' && takeoff) setTool('takeoff');
 }
 
-export function addNode(kind) {
+/** Folders are named in the list; items first get a small window for their name and colour. */
+export async function addNode(kind) {
   if (!S.project) return;
   const { parentId, index } = insertionPoint();
-  const node = kind === 'folder' ? newFolder(uniqueName('New folder')) : newItem(kind, uniqueName(TYPE_NAME[kind]));
+  let node;
+  if (kind === 'folder') node = newFolder(uniqueName('New folder'));
+  else {
+    node = newItem(kind, uniqueName(TYPE_NAME[kind]));
+    const picked = await itemDialog(kind, node);
+    if (!picked) return;
+    Object.assign(node, picked);
+  }
   mutate(() => {
     insertNode(node, parentId, index);
     if (parentId) nodeById(parentId).open = true;
   });
   selectNode(node.id, { takeoff: kind !== 'folder' });
-  startRename(node.id);   // the row was rendered synchronously by the change above
+  if (kind === 'folder') startRename(node.id);   // the row was rendered synchronously by the change above
+}
+
+const TYPE_HINT = { linear: 'lengths (wires, conduits, cable trays)', area: 'areas (floors, rooms, ceilings)', count: 'counts (lights, outlets, switches)' };
+
+/** Name and colour for a new item. Resolves {name, color} or null. */
+async function itemDialog(kind, node) {
+  let color = node.color;
+  const name = h('input', { type: 'text', value: node.name, maxlength: 120 });
+  const custom = h('input', { type: 'color', value: color, title: 'Any colour', 'aria-label': 'Any colour' });
+  const preview = h('span', { class: 'new-item-preview', html: icon(kind) });
+  const swatches = PALETTE.map(c => h('button', {
+    type: 'button', class: 'swatch-btn', title: c, 'aria-label': `Colour ${c}`, style: { background: c },
+    onclick: () => setColor(c),
+  }));
+  function setColor(c) {
+    color = c;
+    custom.value = c;
+    preview.style.color = c;
+    swatches.forEach(b => b.classList.toggle('on', b.title === c));
+  }
+  custom.addEventListener('input', () => setColor(custom.value));
+  setColor(color);
+  const ok = await modal({
+    title: `New ${TYPE_NAME[kind].toLowerCase()} item`,
+    body: [
+      h('p', { class: 'note', style: { margin: 0 } }, `For ${TYPE_HINT[kind]}.`),
+      h('div', { class: 'field' }, h('label', null, 'Name'), h('div', { class: 'inline' }, preview, name)),
+      h('div', { class: 'field' }, h('div', { class: 'label' }, 'Colour'),
+        h('div', { class: 'swatch-grid' }, swatches, custom)),
+    ],
+    buttons: [{ label: 'Cancel', value: null }, { label: 'Create and take off', value: true, primary: true }],
+    validate: () => (name.value.trim() ? null : 'Give the item a name.'),
+  });
+  return ok ? { name: name.value.trim(), color } : null;
 }
 
 export async function deleteNode(id) {

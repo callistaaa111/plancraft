@@ -111,6 +111,30 @@ class MeasureTests(unittest.TestCase):
         self.assertAlmostEqual(q["qty"], 1.0)
         self.assertEqual(q["unit"], "ft")
 
+    def test_item_can_choose_its_own_unit(self):
+        it = _item("linear", "L", [{"page": "p1", "points": [[0, 0], [100, 0]]}], unit="mm")
+        q = measure.item_quantities(it, self.pages, "m")
+        self.assertAlmostEqual(q["qty"], 10000)
+        self.assertEqual(q["unit"], "mm")
+        it["props"]["unit"] = "bogus"  # unknown units fall back to the project's
+        self.assertEqual(measure.item_quantities(it, self.pages, "yd")["unit"], "yd")
+
+    def test_area_units_and_volume(self):
+        sq = [{"page": "p1", "points": [[0, 0], [100, 0], [100, 100], [0, 100]]}]
+        q = measure.item_quantities(_item("area", "A", sq, depth=50), self.pages, "cm")  # 10 m x 10 m, 0.5 m deep
+        self.assertAlmostEqual(q["qty"], 1_000_000)
+        self.assertEqual(q["unit"], "cm²")
+        vol = {label: (v, u) for label, v, u in q["extra"]}["Volume"]
+        self.assertAlmostEqual(vol[0], 50)
+        self.assertEqual(vol[1], "m³")
+        q = measure.item_quantities(_item("area", "A", sq, depth=3), self.pages, "ft")
+        self.assertAlmostEqual({label: v for label, v, _ in q["extra"]}["Volume"], q["qty"] * 3 / 27)
+
+    def test_count_unit_label(self):
+        it = _item("count", "C", [{"page": "p1", "points": [[1, 1], [2, 2]]}], unit="pcs")
+        q = measure.item_quantities(it, self.pages, "ft")
+        self.assertEqual((q["qty"], q["unit"]), (2, "pcs"))
+
     def test_allowance_rounds_up_like_the_sheets(self):
         self.assertEqual(measure.with_allowance(39.68, 20), 48)   # ROUNDUP(39.68*1.2, 0)
         self.assertEqual(measure.with_allowance(10, 20), 12)
@@ -180,7 +204,7 @@ class ImportTests(unittest.TestCase):
             job_path = Path(tmp) / "demo.SwiftJob"
             make_swiftjob(job_path)
             job = importers.read_swiftjob(job_path)
-            self.assertEqual(job["units"], "metric")
+            self.assertEqual(job["units"], "m")
             self.assertEqual(len(job["pages"]), 1)
             self.assertTrue(job["pages"][0]["_member"].endswith(".tiff"))
             self.assertEqual(job["pages"][0]["scale"]["pxPerM"], 10)
@@ -359,6 +383,57 @@ class PricingTests(unittest.TestCase):
             csv_path = Path(tmp) / "prices.csv"
             csv_path.write_text("Material,Unit,Price\nPVC conduit 20mm,pc,90\nPVC elbow,pc,12.5\n", encoding="utf-8")
             self.assertEqual(len(pricelist.parse(csv_path, "prices.csv")["rows"]), 2)
+
+
+class PrintTests(unittest.TestCase):
+    def _project(self, tmp):
+        """An image page and a page kept as its original PDF, with takeoff, a note and a highlight."""
+        import pymupdf as fitz
+        from PIL import Image
+        d = Path(tmp)
+        (d / "pages").mkdir()
+        (d / "sources").mkdir()
+        Image.new("RGB", (1000, 700), "white").save(d / "pages" / "pgimg.png")
+        src = fitz.open()
+        sp = src.new_page(width=720, height=504)                  # 10 x 7 in, rendered at 100 dpi = 1000 x 700 px
+        sp.draw_line((72, 72), (648, 432))
+        src.save(d / "sources" / "plan.pdf")
+        Image.new("RGB", (1000, 700), "white").save(d / "pages" / "pgvec.png")
+        pages = [{"id": "p1", "name": "Image page", "image": "pgimg.png", "width": 1000, "height": 700, "dpi": 100,
+                  "scale": {"pxPerM": 10, "label": "1:100"}},
+                 {"id": "p2", "name": "Vector page", "image": "pgvec.png", "width": 1000, "height": 700, "dpi": 100,
+                  "scale": {"pxPerM": 10, "label": "1:100"}, "src": {"file": "plan.pdf", "page": 0}}]
+        tree = [_item("linear", "LP1-1", [{"page": "p1", "points": [[100, 100], [600, 100], [600, 500]]},
+                                          {"page": "p2", "points": [[100, 100], [900, 600]]}]),
+                _item("count", "Lights", [{"page": "p1", "points": [[200, 200], [300, 300]]}], shape="square"),
+                _item("area", "Room", [{"page": "p1", "points": [[700, 100], [900, 100], [900, 300]]}])]
+        marks = [{"id": "m1", "page": "p1", "kind": "note", "at": [500, 400], "text": "Check this", "color": "#ffd400"},
+                 {"id": "m2", "page": "p1", "kind": "highlight", "points": [[100, 600], [800, 600]], "color": "#ffd400", "width": 20}]
+        return d, {"name": "Print test", "units": "metric", "pages": pages, "tree": tree, "marks": marks, "settings": {}}
+
+    def test_print_pages(self):
+        import pymupdf as fitz
+        import printpdf
+        with tempfile.TemporaryDirectory() as tmp:
+            d, project = self._project(tmp)
+            out = Path(tmp) / "a3.pdf"
+            res = printpdf.build(_Task(), project, d, {"paper": "A3"}, out)
+            self.assertEqual(res["pages"], 2)
+            doc = fitz.open(out)
+            self.assertEqual((round(doc[0].rect.width), round(doc[0].rect.height)), (1191, 842))     # landscape A3
+            text = doc[0].get_text()
+            self.assertIn("LEGEND", text)
+            self.assertIn("LP1-1", text)
+            self.assertIn("90.00 m", text)                       # LP1-1 on page 1: 500 + 400 px at 10 px/m
+            self.assertIn("Check this", text)
+            self.assertIn("Print test", text)                    # title strip
+            doc.close()
+            plan = Path(tmp) / "plan.pdf"
+            printpdf.build(_Task(), project, d, {"paper": "plan", "pages": ["p2"], "legend": False, "title": False}, plan)
+            doc = fitz.open(plan)
+            self.assertEqual((round(doc[0].rect.width), round(doc[0].rect.height)), (720, 504))       # the drawing's own size
+            self.assertEqual(len(doc[0].get_images()), 0)                                             # vector, no picture
+            doc.close()
 
 
 class ExportTests(unittest.TestCase):

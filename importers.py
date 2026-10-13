@@ -118,7 +118,8 @@ def parse_pages(spec: str | None, count: int) -> list[int]:
 
 # ---- PDF ----------------------------------------------------------------------------------------------
 def import_pdf(task, pdf_path: str | Path, out_dir: Path, filename: str, dpi: float = 200,
-               page_spec: str | None = None) -> dict:
+               page_spec: str | None = None, sources_dir: Path | None = None) -> dict:
+    """Render the pages to PNG. With sources_dir, the PDF itself is kept too, so printing can use its vector drawing."""
     try:
         import pymupdf as fitz
     except ImportError:          # PyMuPDF older than 1.24.3
@@ -128,6 +129,14 @@ def import_pdf(task, pdf_path: str | Path, out_dir: Path, filename: str, dpi: fl
     try:
         if doc.needs_pass:
             raise ValueError("This PDF is password-protected. Remove the password and try again.")
+        kept = None
+        if sources_dir is not None:
+            import hashlib
+            digest = hashlib.sha1(Path(pdf_path).read_bytes()).hexdigest()[:16]
+            Path(sources_dir).mkdir(parents=True, exist_ok=True)
+            kept = f"{digest}.pdf"
+            if not (Path(sources_dir) / kept).is_file():
+                shutil.copyfile(pdf_path, Path(sources_dir) / kept)
         idx = parse_pages(page_spec, doc.page_count)
         stem = Path(filename).stem
         pages = []
@@ -151,7 +160,7 @@ def import_pdf(task, pdf_path: str | Path, out_dir: Path, filename: str, dpi: fl
                 text = ""
             pages.append({"id": pid, "name": name, "image": f"{pid}.png", "width": pix.width, "height": pix.height,
                           "dpi": round(eff, 3), "scale": detect_scale(text, eff), "source": filename,
-                          "sourcePage": i + 1})
+                          "sourcePage": i + 1, **({"src": {"file": kept, "page": i}} if kept else {})})
             pix = None
         task.progress(len(idx), len(idx), "Done")
         return {"pages": pages}
@@ -410,7 +419,7 @@ def read_swiftjob(path: str | Path, filename: str | None = None) -> dict:
     takeoff = top.get(("Takeoff", "Folder"))
     tree = [n for n in (convert(k) for k in _children(takeoff))] if takeoff is not None else []
     tree = [n for n in tree if n]
-    units = "imperial" if metric_votes and metric_votes[False] > metric_votes[True] else "metric"
+    units = "ft" if metric_votes and metric_votes[False] > metric_votes[True] else "m"
     return {"name": jp.get("Name") or Path(path).stem, "description": jp.get("Description", ""),
             "pages": pages, "tree": tree, "units": units, "skipped": dict(skipped)}
 

@@ -257,7 +257,7 @@ export function initAutoCount(viewer, host) {
         return true;
       }
       if (!it || it.type !== 'count') {
-        toast('Select a count item first (or create one with + Count), then box one symbol.');
+        toast('Select a count item first (or start one from Takeoff > New count item), then box one symbol.');
         return true;
       }
       box = { x: p[0], y: p[1], w: 0, h: 0, sx: p[0], sy: p[1] };

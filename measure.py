@@ -6,10 +6,34 @@ from __future__ import annotations
 
 import math
 
+def _unit(length: str, per_m: float, imperial: bool, vol_f: float) -> dict:
+    # areas are the unit squared; volumes are m³ (metric) or yd³ (imperial); vol_f turns unit³ into that
+    return {"len": length, "area": f"{length}²", "vol": "yd³" if imperial else "m³", "count": "ea",
+            "per_m": per_m, "imperial": imperial, "vol_f": vol_f}
+
+
 UNITS = {
-    "metric": {"len": "m", "area": "m²", "vol": "m³", "count": "ea", "per_m": 1.0},
-    "imperial": {"len": "ft", "area": "ft²", "vol": "yd³", "count": "ea", "per_m": 1 / 0.3048},
+    "m": _unit("m", 1.0, False, 1.0),
+    "cm": _unit("cm", 100.0, False, 1e-6),
+    "mm": _unit("mm", 1000.0, False, 1e-9),
+    "ft": _unit("ft", 1 / 0.3048, True, 1 / 27),
+    "in": _unit("in", 1 / 0.0254, True, 1 / 46656),
+    "yd": _unit("yd", 1 / 0.9144, True, 1.0),
 }
+UNITS["metric"] = UNITS["m"]  # older projects store the system name
+UNITS["imperial"] = UNITS["ft"]
+UNIT_KEYS = ("m", "cm", "mm", "ft", "in", "yd")
+COUNT_UNITS = ("ea", "pcs", "set", "lot", "unit", "pair")
+
+
+def unit_info(key) -> dict:
+    return UNITS.get(key) or UNITS["m"]
+
+
+def item_units(item: dict, project_units: str) -> str:
+    """The length unit an item is measured in: its own choice, else the project's."""
+    own = (item.get("props") or {}).get("unit")
+    return own if item.get("type") != "count" and own in UNIT_KEYS else project_units
 
 
 def poly_length(pts) -> float:
@@ -51,13 +75,14 @@ def num(v) -> float:
         return 0.0
 
 
-def item_quantities(item: dict, pages: dict, units: str = "metric") -> dict:
+def item_quantities(item: dict, pages: dict, units: str = "m") -> dict:
     """Totals for one takeoff item.
 
     Returns qty (primary quantity), unit, per_page {page_id: qty}, extra [(label, value, unit)] and
     unscaled (sections skipped because their page has no scale).
     """
-    u = UNITS.get(units, UNITS["metric"])
+    units = item_units(item, units)
+    u = unit_info(units)
     kind = item.get("type")
     props = item.get("props") or {}
     per_page: dict[str, float] = {}
@@ -86,7 +111,8 @@ def item_quantities(item: dict, pages: dict, units: str = "metric") -> dict:
         per_page[sec["page"]] = per_page.get(sec["page"], 0.0) + q
         total += q
 
-    unit = {"linear": u["len"], "area": u["area"]}.get(kind, u["count"])
+    count_unit = props.get("unit") if props.get("unit") in COUNT_UNITS else u["count"]
+    unit = {"linear": u["len"], "area": u["area"]}.get(kind, count_unit)
     extra = []
     if kind == "linear":
         h = num(props.get("height"))
@@ -96,10 +122,7 @@ def item_quantities(item: dict, pages: dict, units: str = "metric") -> dict:
         extra.append(("Perimeter", perim, u["len"]))
         d = num(props.get("depth"))
         if d:
-            vol = total * d
-            if units == "imperial":
-                vol /= 27  # ft³ -> yd³
-            extra.append(("Volume", vol, u["vol"]))
+            extra.append(("Volume", total * d * u["vol_f"], u["vol"]))
     return {"qty": total, "unit": unit, "per_page": per_page, "extra": extra, "unscaled": unscaled}
 
 

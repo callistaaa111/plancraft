@@ -39,7 +39,8 @@ There is no Save button. PlanCraft saves about a second after every change, and 
 
 1. **Set the scale** on each page (badge in the Pages list): **Set scale...** for a standard scale, or
    **Calibrate on plan** to click both ends of a dimension you know (most accurate).
-2. Create an item with **+ Linear**, **+ Area** or **+ Count**. Selecting an item switches on the Takeoff tool.
+2. Press **Takeoff** (T) in the toolbar and pick **New linear / area / count item**, give it a name and colour, and
+   start clicking. The same button continues the selected item; selecting an item in the list also switches it on.
 3. Click on the plan. Lines and areas: double-click, Enter or right-click finishes, and Backspace removes the last
    point. Counts: every click is one, and Enter ends the group.
 4. **Hold the right mouse button and drag to pan**, even in the middle of a run (a right-click without moving still
@@ -47,10 +48,19 @@ There is no Save button. PlanCraft saves about a second after every change, and 
    makes the next area a cut-out.
 5. To edit, use **Select (V)**: click a takeoff, drag its points, Alt+click a point to remove it, double-click a line to add
    one, and **Del** deletes. Ctrl+Z / Ctrl+Y undo and redo. Press **?** for all shortcuts.
+6. The selected item glows with a yellow highlighter band (blue for the selected section) and pulses briefly when you
+   pick it. **Focus (G)** fades the rest of the takeoff while an item is selected; turn it off to see everything at
+   full strength.
+7. **P** (or the panel button at the right end of the toolbar) hides the properties panel for more room on the plan.
+
+**Units:** choose what takeoff is measured in for the whole project (**Measure takeoff in**: m, cm, mm, ft, in or yd,
+with areas in the same unit squared), and override it for any item under **Measure in**. Count items can be labelled
+ea, pcs, set, lot, unit or pair. Changing a unit converts the totals and the item's height or depth; the plan
+scale stays the same.
 
 ## Auto count
 
-1. Select a **count** item (or create one with **+ Count**) and pick **Auto count** (A).
+1. Select a **count** item (or start one from **Takeoff > New count item**) and pick **Auto count** (A).
 2. Zoom to the area you are counting, then drag a box tightly around **one** symbol. PlanCraft finds the
    look-alikes (by default only in the part of the page on screen, so legends and title blocks don't get in the way).
 3. Check the circles: green will be added, grey is already counted, and clicking a circle skips it (red).
@@ -128,6 +138,20 @@ Pick the assembly for an item, or for a whole folder (items inside use it unless
 panel. The panel then shows each item's materials and cost, the folder and project totals, and the currency and
 markup %. The Excel export gets a **Bill of Materials** sheet (quantities, prices, amounts, subtotal, markup and total
 as live formulas) and a **Materials by Item** sheet.
+
+## Print and PDF
+
+**Print / PDF** (top bar, or Ctrl+P) makes a high-quality PDF of your plans:
+
+- **Pages:** the open page (optionally only the part on screen), all pages, or the ones you tick.
+- **Paper:** the drawing's own size, or A4 to A0, Letter, Legal, Tabloid or ARCH D, portrait, landscape or automatic.
+- **Include:** the takeoff in its colours, a **legend** with each item's quantity on that page (in a corner you choose),
+  notes and highlights, a title strip (project, page, scale, date), and optionally hidden items.
+- **Download PDF**, or **Open to print** to open it in a new tab and print from there.
+
+Takeoff, notes and the legend are drawn as vector graphics, so they stay sharp at any size. Plans added from a PDF
+print from the original vector drawing (PlanCraft keeps a copy of the PDF in the project), and other pages (images,
+PlanSwift jobs) print from their full-resolution image. **Smaller file** uses JPEG for those images.
 
 ## Excel export
 

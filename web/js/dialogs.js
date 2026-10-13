@@ -43,11 +43,42 @@ export function modal({ title, body, buttons = [{ label: 'OK', value: true, prim
     };
     document.addEventListener('keydown', onKey, true);
     document.body.append(back);
+    draggable(box, box.querySelector('header'));
     const first = box.querySelector('input, select, textarea') || btns.find((b, i) => buttons[i].primary) || btns[0];
     first?.focus();
     if (first?.select && first.type === 'text') first.select();
     onOpen?.({ close, box });
     modal._close = close;
+  });
+}
+
+/** Drag a window around by its title bar; it always keeps at least part of the title bar on screen. */
+function draggable(box, handle) {
+  if (!handle) return;
+  let dx = 0, dy = 0;
+  handle.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    try { handle.setPointerCapture(e.pointerId); } catch { /* pointer already gone */ }
+    const sx = e.clientX - dx, sy = e.clientY - dy;
+    const r0 = box.getBoundingClientRect();
+    const baseL = r0.left - dx, baseT = r0.top - dy;
+    const move = ev => {
+      // keep 60 px of the title bar reachable on every side
+      dx = Math.min(Math.max(ev.clientX - sx, 60 - baseL - r0.width), innerWidth - 60 - baseL);
+      dy = Math.min(Math.max(ev.clientY - sy, -baseT), innerHeight - 40 - baseT);
+      box.style.translate = `${dx}px ${dy}px`;
+    };
+    const up = () => {
+      handle.removeEventListener('pointermove', move);
+      handle.removeEventListener('pointerup', up);
+      handle.removeEventListener('pointercancel', up);
+      handle.classList.remove('dragging');
+    };
+    handle.classList.add('dragging');
+    handle.addEventListener('pointermove', move);
+    handle.addEventListener('pointerup', up);
+    handle.addEventListener('pointercancel', up);
   });
 }
 

@@ -2,7 +2,7 @@
 import { uid, debounce } from './util.js';
 import * as api from './api.js';
 import { putDraft, dropDraft } from './recovery.js';
-import { itemQuantities } from './measure.js';
+import { itemQuantities, unitKey } from './measure.js';
 
 const listeners = {};
 export function on(ev, fn) { (listeners[ev] ||= new Set()).add(fn); return () => listeners[ev].delete(fn); }
@@ -17,6 +17,8 @@ export const S = {
   ortho: false,
   snap: true,
   labels: false,
+  showProps: (() => { try { return localStorage.getItem('plancraft.props') !== '0'; } catch { return true; } })(), // right-hand panel
+  focus: (() => { try { return localStorage.getItem('plancraft.focus') !== '0'; } catch { return true; } })(), // fade other takeoff while an item is selected
   deduct: false,
   qtyScope: 'all',
   showMarks: true,        // notes & highlights on the plan
@@ -86,7 +88,7 @@ export function loadProject(p) {
   p.assemblies ||= [];
   p.settings ||= {};
   p.settings.allowance ||= { linear: 20, area: 0, count: 0 };
-  p.units ||= 'metric';
+  p.units = unitKey(p.units); // 'metric' / 'imperial' from older projects -> 'm' / 'ft'
   S.project = p;
   S.pageId = p.pages[0]?.id || null;
   S.sel = null;

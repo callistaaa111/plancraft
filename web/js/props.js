@@ -65,6 +65,36 @@ function setProp(node, key, value) {
   mutate(() => { node.props[key] = value; });
 }
 
+/** Height and depth are typed in the item's unit: rescale them when that unit changes. */
+function rescaleSizes(it, from, to) {
+  const f = M.unitInfo(to).perM / M.unitInfo(from).perM;
+  for (const k of ['height', 'depth']) {
+    const v = Number(it.props?.[k]);
+    if (v && isFinite(v)) it.props[k] = +(v * f).toPrecision(10);
+  }
+}
+
+function unitField(it) {
+  const p = it.props;
+  if (it.type === 'count') {
+    const sel = h('select', { onchange: e => setProp(it, 'unit', e.target.value === 'ea' ? undefined : e.target.value) },
+      M.COUNT_UNITS.map(u => h('option', { value: u, selected: (M.COUNT_UNITS.includes(p.unit) ? p.unit : 'ea') === u }, u)));
+    return field('Count unit', sel, 'The label shown with the count and in the Excel export.');
+  }
+  const own = M.UNIT_KEYS.includes(p.unit) ? p.unit : '';
+  const proj = S.project.units;
+  const sel = h('select', {
+    onchange: e => mutate(() => {
+      const v = e.target.value;
+      rescaleSizes(it, M.itemUnits(it, proj), v || proj);
+      if (v) p.unit = v; else delete p.unit;
+    }),
+  },
+  h('option', { value: '', selected: !own }, `Project unit (${M.unitInfo(proj).len})`),
+  M.UNIT_KEYS.map(k => h('option', { value: k, selected: own === k }, M.unitLabel(k))));
+  return field('Measure in', sel, 'Takeoff on the plan is measured and totalled in this unit.');
+}
+
 // ---- materials -------------------------------------------------------------------------------------
 const assemblies = () => new Map((S.project.assemblies || []).map(a => [a.id, a]));
 
@@ -152,7 +182,7 @@ function head(kind, iconName, title, color) {
 // ---- item ------------------------------------------------------------------------------------------
 function itemPanel(it) {
   const p = it.props || (it.props = {});
-  const u = M.UNITS[S.project.units];
+  const u = M.unitInfo(M.itemUnits(it, S.project.units));
   const color = liveInput('color', it.color, v => { it.color = v; });
   const swatches = h('div', { class: 'inline', style: { gap: '4px', flexWrap: 'wrap' } },
     PALETTE.slice(0, 10).map(c => h('button', {
@@ -189,6 +219,7 @@ function itemPanel(it) {
       h('button', { class: 'btn small danger', onclick: () => deleteNode(it.id), html: `${icon('trash')}<span>Delete</span>` })),
     field('Name', input(it.name, v => { if (v.trim()) mutate(() => { it.name = v.trim(); }); })),
     field('Colour', h('div', { class: 'inline' }, color, swatches)),
+    unitField(it),
     ...typeFields,
     field('Description', input(p.description, v => setProp(it, 'description', v), { placeholder: 'e.g. LIGHTING, POWER' })),
     field('Spec / type', input(p.spec, v => setProp(it, 'spec', v), { placeholder: 'e.g. 3.5 mm² THHN in 20 mm PVC' }),
@@ -318,9 +349,12 @@ function projectPanel() {
   const secs = x.items.reduce((a, i) => a + i.sections.length, 0);
   const allow = p.settings.allowance;
   const allowInput = type => numInput(allow[type] ?? 0, v => mutate(() => { p.settings.allowance[type] = v ?? 0; }), { min: 0, step: 1, 'aria-label': `Default allowance for ${type} items` });
-  const unitsSel = h('select', { onchange: e => mutate(() => { p.units = e.target.value; }) },
-    h('option', { value: 'metric', selected: p.units === 'metric' }, 'Metric (m, m², m³)'),
-    h('option', { value: 'imperial', selected: p.units === 'imperial' }, 'Imperial (ft, ft², yd³)'));
+  const unitsSel = h('select', {
+    onchange: e => mutate(() => {
+      for (const it of x.items) if (!M.UNIT_KEYS.includes(it.props?.unit)) rescaleSizes(it, p.units, e.target.value);
+      p.units = e.target.value;
+    }),
+  }, M.UNIT_KEYS.map(k => h('option', { value: k, selected: M.unitKey(p.units) === k }, M.unitLabel(k))));
   return h('div', { class: 'props', style: { padding: 0 } },
     head('Project', 'job', p.name),
     h('div', { class: 'stat-grid' },
@@ -328,7 +362,7 @@ function projectPanel() {
       h('span', null, 'Items'), h('span', null, String(x.items.length)),
       h('span', null, 'Takeoff sections'), h('span', null, String(secs)),
       p.importedFrom ? [h('span', null, 'Imported from'), h('span', { title: p.importedFrom, style: { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' } }, p.importedFrom)] : null),
-    field('Units', unitsSel),
+    field('Measure takeoff in', unitsSel, 'Items can also pick their own unit under Measure in.'),
     h('div', { class: 'field' }, h('div', { class: 'label' }, 'Materials & prices'),
       costBox(x.items) || h('div', { class: 'note' }, 'Add a price list and assemblies to get a bill of materials and costs.'),
       h('div', { class: 'field-row', style: { marginTop: '6px' } },
