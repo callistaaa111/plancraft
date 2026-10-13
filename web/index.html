@@ -84,6 +84,7 @@
       <div class="tool-group" role="group" aria-label="Tools">
         <button class="tool" data-tool="select" title="Select and edit (V)"></button>
         <button class="tool" data-tool="takeoff" title="Take off the selected item (T)"></button>
+        <button class="tool" data-tool="autocount" title="Auto count: box one symbol, find all the others (A)"></button>
         <button class="tool" data-tool="measure" title="Measure a distance (M)"></button>
         <button class="tool" data-tool="scale" title="Set the page scale from a known length (K)"></button>
         <button class="tool" data-tool="crop" title="Crop an area into a new page (C)"></button>
@@ -95,8 +96,17 @@
         <button class="toggle" id="tgDeduct" title="Deduct: next area is a cut-out (D)"></button>
         <button class="toggle" id="tgLabels" title="Show item names on the plan (L)"></button>
       </div>
+      <span class="sep"></span>
+      <div class="tool-group" role="group" aria-label="Markup">
+        <button class="tool" data-tool="note" title="Add a note on the plan (N)"></button>
+        <button class="tool" data-tool="highlight" title="Highlighter (H)"></button>
+        <input type="color" id="markColor" class="mark-color" value="#ffd400" title="Note and highlighter colour" aria-label="Note and highlighter colour">
+        <button class="toggle icon-toggle" id="tgMarks" title="Show or hide notes and highlights"></button>
+      </div>
       <div class="spacer"></div>
       <div class="tool-group">
+        <button class="toggle" id="btnCompare" title="Compare this page with another revision"></button>
+        <span class="sep"></span>
         <button class="tool" id="btnPrevPage" title="Previous page (Page Up)"></button>
         <button class="tool" id="btnNextPage" title="Next page (Page Down)"></button>
         <span class="sep"></span>

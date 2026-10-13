@@ -18,6 +18,8 @@ export const S = {
   labels: false,
   deduct: false,
   qtyScope: 'all',
+  showMarks: true,        // notes & highlights on the plan
+  markColor: '#ffd400',
   version: 0,
   save: { state: 'saved', dirty: false, error: null },
 };
@@ -78,6 +80,7 @@ let tx = null;
 export function loadProject(p) {
   p.pages ||= [];
   p.tree ||= [];
+  p.marks ||= [];
   p.settings ||= {};
   p.settings.allowance ||= { linear: 20, area: 0, count: 0 };
   p.units ||= 'metric';
@@ -105,7 +108,7 @@ export function closeProject() {
 // ---- changes & history -----------------------------------------------------------------------------
 const snap = () => {
   const p = S.project;
-  return JSON.stringify({ name: p.name, units: p.units, settings: p.settings, notes: p.notes, pages: p.pages, tree: p.tree });
+  return JSON.stringify({ name: p.name, units: p.units, settings: p.settings, notes: p.notes, pages: p.pages, tree: p.tree, marks: p.marks });
 };
 const restore = str => Object.assign(S.project, JSON.parse(str));
 

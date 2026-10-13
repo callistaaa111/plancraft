@@ -40,6 +40,12 @@ const P = {
   copy: '<rect x="8" y="8" width="12" height="12" rx="1.5"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
   crop: '<path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/>',
   paste: '<rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  wand: '<path d="M4 20L15 9"/><path d="M15 4v2M15 12v2M11 8h2M17 8h2M18.5 4.5l-1.4 1.4M12.9 10.1l-1.4 1.4M18.5 11.5l-1.4-1.4"/>',
+  note: '<path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5M8 9h8M8 12h5"/>',
+  highlight: '<path d="M9 15l-4 5h5l2-2"/><path d="M9 15l7-11 4 3-7 11z"/>',
+  compare: '<rect x="3" y="3" width="12" height="12" rx="1"/><rect x="9" y="9" width="12" height="12" rx="1"/>',
+  align: '<circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
+  marks: '<path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8"/>',
   excel: '<path d="M5 3h10l4 4v14H5z"/><path d="M8 11l5 6M13 11l-5 6"/>',
 };
 

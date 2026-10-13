@@ -26,6 +26,9 @@ export const getTask = id => req('GET', `/api/tasks/${encodeURIComponent(id)}`);
 export const cropPage = (id, image, rect) => req('POST', `/api/projects/${encodeURIComponent(id)}/pages/crop`, { image, rect });
 export const copyPageImage = (id, fromProject, image) => req('POST', `/api/projects/${encodeURIComponent(id)}/pages/copy`, { fromProject, image });
 
+export const autoCount = (id, image, rect, opts = {}) => req('POST', `/api/projects/${encodeURIComponent(id)}/autocount`, { image, rect, ...opts });
+export const tintUrl = (id, image, color) => `/api/projects/${encodeURIComponent(id)}/pages/${encodeURIComponent(image)}/tint?color=${color}`;
+
 export const pageUrl = (projectId, page) => `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(page.image)}`;
 export const exportUrl = projectId => `/api/projects/${encodeURIComponent(projectId)}/export.xlsx`;
 

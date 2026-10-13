@@ -44,6 +44,7 @@ export function initPages(listEl, filterInput, countElement, acts) {
       { label: 'Rename', icon: 'rename', action: () => renamePage(id) },
       'sep',
       { label: 'Crop to a new page...', icon: 'crop', kbd: 'C', action: () => setTool('crop') },
+      { label: 'Compare with another revision', icon: 'compare', action: () => actions.compare?.(id) },
       { label: 'Copy page', icon: 'copy', kbd: 'Ctrl+C', action: () => copyPage(id) },
       { label: 'Paste page after this one', icon: 'paste', kbd: 'Ctrl+V', disabled: !hasClip(), action: () => pastePage() },
       'sep',
@@ -133,6 +134,8 @@ export async function deletePage(id) {
     if (i < 0) return;
     p.pages.splice(i, 1);
     for (const it of ix().items) it.sections = it.sections.filter(s => s.page !== id);
+    p.marks = (p.marks || []).filter(m => m.page !== id);
+    for (const pg of p.pages) if (pg.overlay?.page === id) delete pg.overlay;
     if (S.pageId === id) S.pageId = (p.pages[i] || p.pages[i - 1])?.id || null;
   });
 }
