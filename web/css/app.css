@@ -391,3 +391,13 @@ kbd { font: 11.5px var(--font); padding: 1px 5px; border: 1px solid var(--border
 /* running totals while a line or area is being drawn */
 .qtybox .big.drawing, .tree .row.drawing .qty { color: var(--accent); }
 .qtybox .draft-line span:last-child { color: var(--accent); font-weight: 600; }
+
+/* box-selected counts: the little window with how many are selected */
+.pick-box { position: absolute; z-index: 5; min-width: 150px; max-width: 260px; padding: 8px 10px; background: var(--panel);
+  border: 1px solid var(--border-strong); border-radius: 8px; box-shadow: 0 6px 20px rgba(0, 0, 0, .25); font-size: 12.5px; }
+.pick-total { font-size: 13px; margin-bottom: 4px; }
+.pick-total b { font-size: 16px; color: var(--accent); }
+.pick-row { display: flex; align-items: center; gap: 6px; padding: 1px 0; }
+.pick-row .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.pick-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-actions { display: flex; gap: 6px; margin-top: 8px; }

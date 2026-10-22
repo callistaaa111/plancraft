@@ -580,6 +580,7 @@ function showHelp() {
     ['V', 'Select / edit takeoff'], ['T', 'Take off the selected item'], ['M', 'Measure (not saved)'], ['K', 'Set scale from a known length'],
     ['C', 'Crop: drag a box to make it a new page'],
     ['A', 'Auto count: select a count item, box one symbol, review the matches, Add'],
+    ['Drag (count item)', 'Box-select its counts: see how many, or delete them'], ['Shift+drag (Select)', 'Box-select counts of every count item'],
     ['N / H', 'Note / highlighter on the plan (not counted)'], ['Ctrl+C / Ctrl+V', 'Copy the open page / paste it (also into another project)'],
     ['Click', 'Add a point (or a marker for counts)'], ['Double-click, Enter, right-click', 'Finish the run / area / count'],
     ['Backspace', 'Remove the last point while drawing'], ['Esc', 'Cancel drawing / clear selection'],
