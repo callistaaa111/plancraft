@@ -51,7 +51,10 @@ There is no Save button. PlanCraft saves about a second after every change, and 
 6. The selected item glows with a yellow highlighter band (blue for the selected section) and pulses briefly when you
    pick it. **Focus (G)** fades the rest of the takeoff while an item is selected; turn it off to see everything at
    full strength.
-7. **P** (or the panel button at the right end of the toolbar) hides the properties panel for more room on the plan.
+7. **Box-select counts:** with a count item selected, left-drag a box on the plan (a plain click still adds a count).
+   The counts inside get a blue ring and a small window shows how many are selected, with **Delete**. In the Select
+   tool, **Shift+drag** selects the counts of every count item, listed per item. Esc closes it.
+8. **P** (or the panel button at the right end of the toolbar) hides the properties panel for more room on the plan.
 
 **Units:** choose what takeoff is measured in for the whole project (**Measure takeoff in**: m, cm, mm, ft, in or yd,
 with areas in the same unit squared), and override it for any item under **Measure in**. Count items can be labelled

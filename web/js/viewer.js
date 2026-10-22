@@ -4,7 +4,7 @@ import {
 } from './store.js';
 import * as M from './measure.js';
 import { pageUrl } from './api.js';
-import { uid, fmt, clamp } from './util.js';
+import { uid, fmt, clamp, h } from './util.js';
 import { toast, openMenu } from './dialogs.js';
 
 const MIN_SCALE = 0.01;
@@ -100,8 +100,8 @@ export class Viewer {
     canvas.addEventListener('wheel', e => this.onWheel(e), { passive: false });
 
     on('load', () => { this.clearCache(); this.views.clear(); this.shownPage = null; this.draft = null; this.countSec = null; this.measureDone = null; this.showPage(); });
-    on('page', () => this.showPage());
-    on('change', () => { if (this.shownPage !== S.pageId || !pageById(this.shownPage)) this.showPage(); this.render(); });
+    on('page', () => { this.clearPick(); this.showPage(); });
+    on('change', () => { this.clearPick(); if (this.shownPage !== S.pageId || !pageById(this.shownPage)) this.showPage(); this.render(); });
     on('live', () => this.render());
     on('select', () => {
       // a short pulse when another item gets selected, so the eye finds it on a busy plan
@@ -110,7 +110,7 @@ export class Viewer {
       this.pulseId = id;
       this.render();
     });
-    on('tool', () => { if (S.tool !== 'takeoff') this.countSec = null; this.draft = null; this.cropRect = null; this.ext.forEach(x => x.reset?.('tool')); this.canvas.style.cursor = ''; this.updateCursor(); this.render(); });
+    on('tool', () => { this.clearPick(); if (S.tool !== 'takeoff') this.countSec = null; this.draft = null; this.cropRect = null; this.ext.forEach(x => x.reset?.('tool')); this.canvas.style.cursor = ''; this.updateCursor(); this.render(); });
   }
 
   /**
@@ -285,6 +285,7 @@ export class Viewer {
     this.drawTakeoff(page);
     if (this.pulse() > 0) this.render(); // keep animating until the pulse fades
     this.drawDraft(page);
+    this.drawPick(page);
     this.emitDraft(page);
     this.drawCrop(page);
     for (const x of this.ext) x.drawOver?.(ctx, page);
@@ -703,7 +704,7 @@ export class Viewer {
     switch (S.tool) {
       case 'takeoff':
         if (!it) return 'Select or create an item in the Takeoff list, then click on the plan.';
-        if (it.type === 'count') return this.countSec ? `Counting "${it.name}": click each one. Enter or right-click when done.` : `Click on the plan to count "${it.name}".`;
+        if (it.type === 'count') return this.countSec ? `Counting "${it.name}": click each one, or drag a box to select counts. Enter or right-click when done.` : `Click on the plan to count "${it.name}", or drag a box to select its counts.`;
         if (this.draft) return `Click to add points. Double-click, Enter or right-click to finish${it.type === 'area' ? ' (or click the first point)' : ''}. Hold right button to pan. Backspace removes the last point.`;
         return `Click on the plan to start "${it.name}". Hold Shift for straight runs, hold right button to pan.`;
       case 'measure':
@@ -884,7 +885,131 @@ export class Viewer {
     }
     if (this.ext.some(xt => xt.selectDown?.(e, x, y, 'after'))) return;
     if (S.secSel) select(S.sel, null);
+    const sel = selectedItem();
+    if (e.shiftKey || sel?.type === 'count') {
+      const ids = e.shiftKey ? ix().items.filter(i => i.type === 'count').map(i => i.id) : [sel.id];
+      this.startPick(e, x, y, ids);
+      return;
+    }
     this.startPan(e, x, y);
+  }
+
+  // ---- picking counts with a box ---------------------------------------------------------------------
+  /** Left-drag a box to select count markers. A click without dragging adds a count (onClick). */
+  startPick(e, x, y, itemIds, onClick = null) {
+    this.clearPick();
+    this.drag = { mode: 'pick', sx: x, sy: y, start: this.toImg(x, y), itemIds, onClick, moved: false };
+    this.capture(e);
+  }
+
+  finishPick(d) {
+    const r = this.pickRect;
+    this.pickRect = null;
+    if (!r) return;
+    const x1 = r.x + r.w, y1 = r.y + r.h;
+    const x = ix();
+    const picks = [];
+    for (const id of d.itemIds) {
+      const it = nodeById(id);
+      if (!it || x.nodes.get(id)?.hidden) continue;
+      for (const sec of it.sections) {
+        if (sec.page !== S.pageId) continue;
+        sec.points.forEach((p, pt) => { if (p[0] >= r.x && p[0] <= x1 && p[1] >= r.y && p[1] <= y1) picks.push({ itemId: id, secId: sec.id, pt }); });
+      }
+    }
+    if (!picks.length) { toast('No counts inside that box.'); return; }
+    this.countPick = { pageId: S.pageId, rect: r, picks };
+    this.showPickBox();
+  }
+
+  clearPick() {
+    if (!this.countPick && !this.pickBox) return;
+    this.countPick = null;
+    this.pickBox?.remove();
+    this.pickBox = null;
+    this.render();
+  }
+
+  /** The little window next to the box: how many counts are selected (per item), Delete, close. */
+  showPickBox() {
+    const cp = this.countPick;
+    this.pickBox?.remove();
+    const per = new Map();
+    for (const p of cp.picks) per.set(p.itemId, (per.get(p.itemId) || 0) + 1);
+    const rows = [...per].map(([id, n]) => {
+      const it = nodeById(id);
+      return h('div', { class: 'pick-row' }, h('span', { class: 'swatch', style: { background: it?.color } }),
+        h('span', { class: 'pick-name' }, it?.name || ''), h('b', null, String(n)));
+    });
+    this.pickBox = h('div', { class: 'pick-box', role: 'status', 'aria-live': 'polite' },
+      h('div', { class: 'pick-total' }, h('b', null, String(cp.picks.length)), ` count${cp.picks.length === 1 ? '' : 's'} selected`),
+      rows,
+      h('div', { class: 'pick-actions' },
+        h('button', { class: 'btn small danger', type: 'button', onclick: () => this.deletePicked() }, 'Delete'),
+        h('button', { class: 'btn small', type: 'button', onclick: () => this.clearPick() }, 'Close')));
+    this.host.append(this.pickBox);
+    this.placePickBox();
+    this.render();
+  }
+
+  placePickBox() {
+    const cp = this.countPick, box = this.pickBox;
+    if (!cp || !box) return;
+    const [x, y] = this.toScr([cp.rect.x + cp.rect.w, cp.rect.y + cp.rect.h]);
+    box.style.left = `${clamp(x + 8, 4, this.w - box.offsetWidth - 4)}px`;
+    box.style.top = `${clamp(y + 8, 4, this.h - box.offsetHeight - 4)}px`;
+  }
+
+  deletePicked() {
+    const cp = this.countPick;
+    if (!cp) return;
+    const n = cp.picks.length;
+    mutate(() => {
+      const bySec = new Map();
+      for (const p of cp.picks) (bySec.get(p.secId) || bySec.set(p.secId, { itemId: p.itemId, pts: [] }).get(p.secId)).pts.push(p.pt);
+      for (const [secId, { itemId, pts }] of bySec) {
+        const it = nodeById(itemId);
+        const sec = it?.sections.find(s => s.id === secId);
+        if (!sec) continue;
+        for (const pt of pts.sort((a, b) => b - a)) sec.points.splice(pt, 1);
+        if (!sec.points.length) it.sections.splice(it.sections.indexOf(sec), 1);
+      }
+    });
+    this.countSec = null;
+    this.clearPick();
+    toast(`Deleted ${n} count${n === 1 ? '' : 's'}. Ctrl+Z brings them back.`);
+  }
+
+  drawPick(page) {
+    const ctx = this.ctx;
+    const r = this.pickRect;
+    if (r) {
+      const a = this.toScr([r.x, r.y]), b = this.toScr([r.x + r.w, r.y + r.h]);
+      ctx.save();
+      ctx.fillStyle = 'rgba(31, 90, 224, .08)';
+      ctx.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+      ctx.setLineDash([6, 4]);
+      ctx.strokeStyle = '#1f5ae0';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+      ctx.restore();
+    }
+    const cp = this.countPick;
+    if (!cp || cp.pageId !== page.id) return;
+    ctx.save();
+    ctx.strokeStyle = '#1f5ae0';
+    ctx.lineWidth = 2.5;
+    for (const p of cp.picks) {
+      const it = nodeById(p.itemId);
+      const pt = it?.sections.find(s => s.id === p.secId)?.points[p.pt];
+      if (!pt) continue;
+      const [x, y] = this.toScr(pt);
+      ctx.beginPath();
+      ctx.arc(x, y, this.markerRadius(it) + 5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
+    this.placePickBox();
   }
 
   takeoffDown(e, x, y) {
@@ -892,7 +1017,7 @@ export class Viewer {
     if (!it) { toast('Select an item in the Takeoff list first, or start a new one from the Takeoff button.'); return; }
     if (ix().nodes.get(it.id)?.hidden) { toast(`"${it.name}" is hidden. Show it (eye icon) to take off.`); return; }
     const p = this.pointFor(x, y, e, it.type === 'count' ? undefined : this.draft?.pts[this.draft.pts.length - 1]);
-    if (it.type === 'count') { this.addCount(it, p); return; }
+    if (it.type === 'count') { this.startPick(e, x, y, [it.id], () => this.addCount(it, p)); return; }
     if (!this.draft || this.draft.itemId !== it.id) {
       this.draft = { kind: 'takeoff', itemId: it.id, type: it.type, pts: [], deduct: it.type === 'area' && S.deduct };
     }
@@ -971,6 +1096,14 @@ export class Viewer {
         this.render();
         return;
       }
+      if (d.mode === 'pick') {
+        if (!d.moved && Math.hypot(x - d.sx, y - d.sy) < 5) return;   // a click (adds a count), not a box yet
+        d.moved = true;
+        const p = this.toImg(x, y);
+        this.pickRect = { x: Math.min(d.start[0], p[0]), y: Math.min(d.start[1], p[1]), w: Math.abs(p[0] - d.start[0]), h: Math.abs(p[1] - d.start[1]) };
+        this.render();
+        return;
+      }
       if (d.mode === 'none') return;
       if (!d.moved && Math.hypot(x - d.sx, y - d.sy) < 3) return;
       const it = nodeById(d.itemId);
@@ -1005,7 +1138,11 @@ export class Viewer {
     this.drag = null;
     try { this.canvas.releasePointerCapture(e.pointerId); } catch { /* already released */ }
     if (d.mode === 'ext') d.ext.up?.(e, d);
-    else if (d.mode === 'pan') {
+    else if (d.mode === 'pick') {
+      if (e.type !== 'pointerup') this.pickRect = null;
+      else if (d.moved) this.finishPick(d);
+      else d.onClick?.();
+    } else if (d.mode === 'pan') {
       if (d.right && !d.moved && e.type === 'pointerup') this.rightClick(d.cx, d.cy);
     } else if (d.mode === 'crop') {
       const r = this.cropRect;
@@ -1151,6 +1288,7 @@ export class Viewer {
     if (this.ext.some(x => x.key?.(e))) return true;
     switch (e.key) {
       case 'Escape':
+        if (this.countPick) { this.clearPick(); return true; }
         if (this.cropRect) { this.clearCrop(); return true; }
         if (this.cancelDraft()) return true;
         if (this.measureDone) { this.measureDone = null; this.render(); return true; }
