@@ -12,7 +12,7 @@ async function req(method, url, body) {
     throw new Error('Cannot reach PlanCraft. Is its window (the server) still open?');
   }
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), { status: res.status });
   return data;
 }
 
@@ -25,6 +25,7 @@ export const listBackups = id => req('GET', `/api/projects/${encodeURIComponent(
 export const restoreBackup = (id, name) => req('POST', `/api/projects/${encodeURIComponent(id)}/restore`, { name });
 export const getTask = id => req('GET', `/api/tasks/${encodeURIComponent(id)}`);
 
+export const rotatePage = (id, image, turns) => req('POST', `/api/projects/${encodeURIComponent(id)}/pages/rotate`, { image, turns });
 export const cropPage = (id, image, rect) => req('POST', `/api/projects/${encodeURIComponent(id)}/pages/crop`, { image, rect });
 export const copyPageImage = (id, fromProject, image) => req('POST', `/api/projects/${encodeURIComponent(id)}/pages/copy`, { fromProject, image });
 

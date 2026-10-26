@@ -8,7 +8,7 @@ import { icon } from './icons.js';
 import { addNode, deleteNode, duplicateNode, selectNode } from './tree.js';
 import { scaleDialog, confirmAutoScale } from './scale.js';
 import { deletePage, renamePage } from './pages.js';
-import { copyPage, pastePage, hasClip } from './pageops.js';
+import { copyPage, pastePage, hasClip, rotatePage } from './pageops.js';
 import { openMaterials } from './materials.js';
 import { assemblyFor, itemParts, costing, money } from './pricing.js';
 
@@ -354,6 +354,8 @@ function pagePanel() {
         h('button', { class: 'btn small', onclick: () => copyPage(page.id), title: 'Ctrl+C', html: `${icon('copy')}<span>Copy</span>` }),
         hasClip() ? h('button', { class: 'btn small', onclick: () => pastePage(), title: 'Ctrl+V', html: `${icon('paste')}<span>Paste</span>` }) : null),
       h('div', { class: 'btn-row' },
+        h('button', { class: 'btn small', onclick: () => rotatePage(page.id, 3), title: 'Turn the page 90° to the left', html: `${icon('undo')}<span>Rotate left</span>` }),
+        h('button', { class: 'btn small', onclick: () => rotatePage(page.id, 1), title: 'Turn the page 90° to the right', html: `${icon('redo')}<span>Rotate right</span>` }),
         h('button', { class: 'btn small', onclick: () => renamePage(page.id), html: `${icon('rename')}<span>Rename</span>` }),
         h('button', { class: 'btn small danger', onclick: () => deletePage(page.id), html: `${icon('trash')}<span>Delete page</span>` })),
       h('hr', { style: { border: 0, borderTop: '1px solid var(--border)', margin: '6px 0', width: '100%' } }));

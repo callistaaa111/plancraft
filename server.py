@@ -30,7 +30,7 @@ sys.path.insert(0, str(APP_DIR))
 import importers  # noqa: E402
 import vision  # noqa: E402
 import tasks  # noqa: E402
-from store import Store  # noqa: E402
+from store import Conflict, Store  # noqa: E402
 
 WEB_DIR = APP_DIR / "web"
 DEFAULT_PORT = 8791
@@ -96,6 +96,10 @@ class Api(BaseHTTPRequestHandler):
         url = urlparse(self.path)
         path = unquote(url.path)
         q = {k: v[-1] for k, v in parse_qs(url.query).items()}
+        # only answer to our own address: blocks web pages that point their domain at this PC (DNS rebinding)
+        port = self.server.server_address[1]
+        if self.headers.get("Host") not in (f"127.0.0.1:{port}", f"localhost:{port}"):
+            return self.fail(403, "Not allowed.")
         try:
             if path.startswith("/api/"):
                 return self.api(method, path[5:], q)
@@ -104,6 +108,8 @@ class Api(BaseHTTPRequestHandler):
             return self.fail(405, "Method not allowed")
         except KeyError:
             return self.fail(404, "Not found")
+        except Conflict as exc:
+            return self.fail(409, str(exc))
         except ValueError as exc:
             return self.fail(400, str(exc))
         except (ConnectionError, BrokenPipeError):
@@ -206,12 +212,14 @@ class Api(BaseHTTPRequestHandler):
                     st.prune_images(pid, project)
                     return self.send_json(project)
                 if method == "PUT":
-                    return self.send_json(st.save(pid, self.read_json()))
+                    body = self.read_json()
+                    return self.send_json(st.save(pid, body, expect=body.get("modified")))
                 if method == "DELETE":
                     st.delete(pid)
                     return self.send_json({"ok": True})
             if rest == ["save"] and method == "POST":           # navigator.sendBeacon on page close
-                return self.send_json(st.save(pid, self.read_json()))
+                body = self.read_json()
+                return self.send_json(st.save(pid, body, expect=body.get("modified")))
             if rest == ["backups"] and method == "GET":
                 return self.send_json(st.backups(pid))
             if rest == ["restore"] and method == "POST":
@@ -249,6 +257,10 @@ class Api(BaseHTTPRequestHandler):
                 body = self.read_json()
                 return self.send_json(importers.crop_page(st.image_path(pid, body.get("image")), st.pages_dir(pid),
                                                           body.get("rect")))
+            if rest == ["pages", "rotate"] and method == "POST":   # turn a page image (quarter turns, clockwise)
+                body = self.read_json()
+                return self.send_json(importers.rotate_page(st.image_path(pid, body.get("image")), st.pages_dir(pid),
+                                                            body.get("turns")))
             if rest == ["pages", "copy"] and method == "POST":     # pasted page (maybe from another project)
                 body = self.read_json()
                 src = st.image_path(body.get("fromProject") or pid, body.get("image"))

@@ -23,6 +23,10 @@ BACKUPS_KEPT = 30
 DEFAULT_SETTINGS = {"allowance": {"linear": 20, "area": 0, "count": 0}, "currency": "₱", "markup": 0}
 
 
+class Conflict(Exception):
+    """The project on disk changed since the browser loaded it (another window saved it)."""
+
+
 def now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
@@ -129,16 +133,20 @@ class Store:
         d = self.project_dir(pid)
         return json.loads((d / "project.json").read_text(encoding="utf-8"))
 
-    def save(self, pid: str, project: dict, write_new: bool = False) -> dict:
+    def save(self, pid: str, project: dict, write_new: bool = False, expect: str | None = None) -> dict:
+        """expect: the 'modified' the browser last loaded or saved; refuse if the file has changed since."""
         if not isinstance(project, dict) or not isinstance(project.get("pages"), list) \
                 or not isinstance(project.get("tree"), list):
             raise ValueError("Not a PlanCraft project.")
         d = self.project_dir(pid, must_exist=not write_new)
-        project["id"] = pid
-        project["schema"] = SCHEMA
-        project["modified"] = now_iso()
         with self._lock:
             f = d / "project.json"
+            if expect and f.is_file() and json.loads(f.read_text(encoding="utf-8")).get("modified") != expect:
+                raise Conflict("This project was changed in another PlanCraft window, so this window's changes "
+                               "were not saved. Reload (F5) to get the latest version.")
+            project["id"] = pid
+            project["schema"] = SCHEMA
+            project["modified"] = datetime.now().isoformat(timespec="milliseconds")   # two saves in a second differ
             if f.is_file():
                 self._backup(d, f)
             _write_json_atomic(f, project)
@@ -222,13 +230,20 @@ class Store:
     def prune_images(self, pid: str, project: dict) -> int:
         """Remove page images no page refers to (left by deleted pages or unfinished imports)."""
         used = {p.get("image") for p in project.get("pages") or []}
-        removed = 0
         pdir = self.project_dir(pid) / "pages"
         if not pdir.is_dir():
             return 0
         cutoff = time.time() - 3600   # never touch files an import may still be handing over
-        for f in pdir.glob("*.png"):
-            if f.name not in used and f.stat().st_mtime < cutoff:
+        unused = [f for f in pdir.glob("*.png") if f.name not in used and f.stat().st_mtime < cutoff]
+        if unused:   # a backup may still show that page: restoring it must find its image
+            for b in (self.project_dir(pid) / "backups").glob("*.json"):
+                try:
+                    used.update(re.findall(r'"image":\s*"([^"]+)"', b.read_text(encoding="utf-8")))
+                except OSError:
+                    pass
+        removed = 0
+        for f in unused:
+            if f.name not in used:
                 f.unlink(missing_ok=True)
                 removed += 1
         return removed

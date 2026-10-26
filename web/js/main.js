@@ -402,7 +402,7 @@ async function openProject(id) {
         buttons: [{ label: 'Discard', value: 'discard' }, { label: 'Recover', value: 'recover', primary: true }],
         dismissable: false,
       });
-      if (choice === 'recover') { p = { ...saved, id: p.id }; recovered = true; }
+      if (choice === 'recover') { p = { ...saved, id: p.id, modified: p.modified }; recovered = true; }   // chosen: may replace what is on disk
     }
     if (!recovered) dropDraft(id);
   }
