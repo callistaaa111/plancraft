@@ -131,7 +131,7 @@ export class Viewer {
   toScr(p) { const v = this.view; return [p[0] * v.s + v.tx, p[1] * v.s + v.ty]; }
   local(e) { const r = this.canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; }
   pageSize(page) {
-    const e = this.cache.get(page.id);
+    const e = this.cache.get(page.image);
     return [page.width || e?.iw || 1000, page.height || e?.ih || 700];
   }
 
@@ -195,10 +195,10 @@ export class Viewer {
   }
 
   async ensureImage(page) {
-    let e = this.cache.get(page.id);
-    if (e) { this.cache.delete(page.id); this.cache.set(page.id, e); return; }   // LRU: move to the end
+    let e = this.cache.get(page.image);
+    if (e) { this.cache.delete(page.image); this.cache.set(page.image, e); return; }   // LRU: move to the end
     e = { img: null, mips: [], loading: true, error: null };
-    this.cache.set(page.id, e);
+    this.cache.set(page.image, e);
     this.evict();
     try {
       e.img = await loadBitmap(pageUrl(S.project.id, page));
@@ -230,7 +230,7 @@ export class Viewer {
   evict() {
     while (this.cache.size > CACHE_PAGES) {
       const [id, e] = this.cache.entries().next().value;
-      if (id === this.shownPage) break;
+      if (id === currentPage()?.image) break;
       e.mips.forEach(m => m.bmp.close?.());
       e.img?.close?.();
       this.cache.delete(id);
@@ -259,7 +259,8 @@ export class Viewer {
     ctx.fillRect(tx, ty, W * s, H * s);
     ctx.restore();
 
-    const e = this.cache.get(page.id);
+    const e = this.cache.get(page.image);
+    if (!e) this.ensureImage(page);   // the page's image changed (turned, undone)
     if (this.ext.some(x => x.drawPage?.(ctx, page))) { /* drawn by an add-on (revision overlay) */ }
     else if (e?.img) {
       const want = W * s * this.dpr;

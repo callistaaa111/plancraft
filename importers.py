@@ -247,6 +247,18 @@ def crop_page(src: Path, out_dir: Path, rect) -> dict:
     return {"id": pid, "image": f"{pid}.png", "width": x1 - x0, "height": y1 - y0, "offset": [x0, y0]}
 
 
+def rotate_page(src: Path, out_dir: Path, turns) -> dict:
+    """Turn a page image by 90 degrees clockwise per turn (1, 2 or 3) into a new page image."""
+    if turns not in (1, 2, 3):
+        raise ValueError("Rotate by 1, 2 or 3 quarter turns.")
+    Image = _open_image_lib()
+    with Image.open(src) as im:
+        out = im.transpose({1: Image.Transpose.ROTATE_270, 2: Image.Transpose.ROTATE_180, 3: Image.Transpose.ROTATE_90}[turns])
+        name = f"{new_id('pg')}.png"
+        save_png(out, out_dir / name)
+    return {"image": name, "width": out.width, "height": out.height}
+
+
 def copy_page_image(src: Path, out_dir: Path) -> dict:
     """Copy a page image (for a pasted page) and return its new name and size."""
     Image = _open_image_lib()

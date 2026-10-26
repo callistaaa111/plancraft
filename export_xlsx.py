@@ -58,6 +58,12 @@ def _fmt(v):
 def build(project: dict) -> bytes:
     units = project.get("units") or "m"
     pages = {p["id"]: p for p in project.get("pages") or []}
+    ours = set()   # cells holding formulas we wrote; any other text starting with "=" is the user's and stays text
+
+    def formula(ws, r, c, f):
+        ours.add((ws.title, r, c))
+        return ws.cell(r, c, f)
+
     page_order = {p["id"]: i for i, p in enumerate(project.get("pages") or [])}
     rows = []
     for folder, item in walk_items(project.get("tree") or []):
@@ -85,7 +91,7 @@ def build(project: dict) -> bytes:
         for c, v in enumerate(values, start=1):
             cell = ws.cell(r, c, v)
             cell.border = BORDER
-        ws.cell(r, 9, f"=IF(H{r}>0,ROUNDUP(F{r}*(1+H{r}/100),0),F{r})")
+        formula(ws, r, 9, f"=IF(H{r}>0,ROUNDUP(F{r}*(1+H{r}/100),0),F{r})")
         ws.cell(r, 6).number_format = "0" if item.get("type") == "count" else NUM
         ws.cell(r, 9).number_format = "0" if item.get("type") == "count" else NUM
         if q["unscaled"]:
@@ -170,7 +176,7 @@ def build(project: dict) -> bytes:
                 wc.cell(row, 1, int(num) if num.isdigit() else num)
                 wc.cell(row, 2, desc)
                 wc.cell(row, 3, round(lm, 1))
-                wc.cell(row, 4, f"=ROUNDUP(C{row}*{1 + float(allow) / 100:g},0)")
+                formula(wc, row, 4, f"=ROUNDUP(C{row}*{1 + float(allow) / 100:g},0)")
                 wc.cell(row, 5, spec)
                 for col in range(1, 6):
                     wc.cell(row, col).border = BORDER
@@ -210,7 +216,7 @@ def build(project: dict) -> bytes:
             vals = [m.get("category") or "", m.get("name"), m.get("unit") or "", round(b["qty"], 4), pricing.num(m.get("price"))]
             for c, v in enumerate(vals, start=1):
                 wb_.cell(r, c, v).border = BORDER
-            wb_.cell(r, 6, f"=D{r}*E{r}").border = BORDER
+            formula(wb_, r, 6, f"=D{r}*E{r}").border = BORDER
             wb_.cell(r, 4).number_format = "0" if m.get("whole") else NUM
             wb_.cell(r, 5).number_format = money
             wb_.cell(r, 6).number_format = money
@@ -219,9 +225,9 @@ def build(project: dict) -> bytes:
         rows_ = [("Subtotal", f"=SUM(F5:F{last})"),
                  (f"Markup {cost['markup']:g}%", f"=F{r}*{cost['markup'] / 100:g}"),
                  ("TOTAL", f"=F{r}+F{r + 1}")]
-        for i, (label, formula) in enumerate(rows_):
+        for i, (label, f) in enumerate(rows_):
             wb_.cell(r + i, 5, label).font = BOLD
-            c = wb_.cell(r + i, 6, formula)
+            c = formula(wb_, r + i, 6, f)
             c.font, c.number_format, c.border = BOLD, money, BORDER
         wb_.freeze_panes = "A5"
 
@@ -235,7 +241,7 @@ def build(project: dict) -> bytes:
                     m.get("unit") or "", pricing.num(m.get("price"))]
             for c, v in enumerate(vals, start=1):
                 wi.cell(r, c, v).border = BORDER
-            wi.cell(r, 8, f"=E{r}*G{r}").border = BORDER
+            formula(wi, r, 8, f"=E{r}*G{r}").border = BORDER
             wi.cell(r, 5).number_format = NUM
             wi.cell(r, 7).number_format = money
             wi.cell(r, 8).number_format = money
@@ -281,6 +287,11 @@ def build(project: dict) -> bytes:
             wpg.cell(i + 4, 4).fill = WARN_FILL
     wpg.freeze_panes = "A5"
 
+    for ws in wb.worksheets:
+        for row in ws.iter_rows():
+            for cell in row:
+                if cell.data_type == "f" and (ws.title, cell.row, cell.column) not in ours:
+                    cell.data_type = "s"
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

@@ -329,13 +329,15 @@ def build(task, project: dict, project_dir: Path, opts: dict, out_path: Path) ->
             src = page.get("src") or {}
             src_file = project_dir / "sources" / src.get("file", "") if src.get("file") else None
             if src_file and src_file.is_file():
-                if src["file"] not in sources:
+                key = (src["file"], src.get("page", 0), src.get("turns", 0))   # turned once, when first opened
+                if key not in sources:
                     sd = fitz.open(str(src_file))
-                    sources[src["file"]] = sd
-                sd = sources[src["file"]]
-                sp = sd[src.get("page", 0)]
-                if sp.rotation:
-                    sp.remove_rotation()                      # match the image PlanCraft rendered
+                    sp = sd[src.get("page", 0)]
+                    sp.set_rotation((sp.rotation + 90 * src.get("turns", 0)) % 360)
+                    if sp.rotation:
+                        sp.remove_rotation()                  # match the image PlanCraft rendered (and turned)
+                    sources[key] = sd
+                sd = sources[key]
                 f = 72.0 / dpi                                # image px -> source points
                 clip = fitz.Rect(rx * f, ry * f, (rx + rw) * f, (ry + rh) * f)
                 tp.show_pdf_page(tp.rect, sd, src.get("page", 0), clip=clip)

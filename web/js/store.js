@@ -235,14 +235,15 @@ export async function saveNow() {
   setSaveState('saving');
   const pid = S.project.id;
   saving = api.saveProject(pid, S.project)
-    .then(() => {
+    .then(res => {
+      if (S.project?.id === pid) S.project.modified = res.modified;   // the next save proves it saw this one
       setSaveState(S.save.dirty ? 'pending' : 'saved');
       if (!S.save.dirty) { draftSoon.cancel(); dropDraft(pid); }     // on disk now: the crash copy is not needed
     })
     .catch(err => {
       S.save.dirty = true;
       setSaveState('error', err.message);
-      setTimeout(() => { if (S.save.dirty) saveSoon(); }, 4000);
+      if (err.status !== 409) setTimeout(() => { if (S.save.dirty) saveSoon(); }, 4000);   // 409: reload, retrying cannot help
     })
     .finally(() => { saving = null; });
   await saving;

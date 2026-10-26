@@ -1,6 +1,6 @@
 // The Pages list.
 import { S, on, mutate, select, setPage, setTool, pageById, sectionsPerPage, ix } from './store.js';
-import { copyPage, pastePage, hasClip } from './pageops.js';
+import { copyPage, pastePage, hasClip, rotatePage } from './pageops.js';
 import * as M from './measure.js';
 import { h } from './util.js';
 import { icon } from './icons.js';
@@ -42,6 +42,9 @@ export function initPages(listEl, filterInput, countElement, acts) {
       { label: 'Page details', icon: 'page', action: () => { select(null); } },
       { label: 'Set scale...', icon: 'scale', action: () => actions.scale(id) },
       { label: 'Rename', icon: 'rename', action: () => renamePage(id) },
+      { label: 'Rotate left', icon: 'undo', action: () => rotatePage(id, 3) },
+      { label: 'Rotate right', icon: 'redo', action: () => rotatePage(id, 1) },
+      { label: 'Rotate 180°', icon: 'redo', action: () => rotatePage(id, 2) },
       'sep',
       { label: 'Crop to a new page...', icon: 'crop', kbd: 'C', action: () => setTool('crop') },
       { label: 'Compare with another revision', icon: 'compare', action: () => actions.compare?.(id) },

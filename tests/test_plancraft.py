@@ -460,6 +460,16 @@ class ExportTests(unittest.TestCase):
         self.assertEqual(wc["D5"].value, "=ROUNDUP(C5*1.2,0)")
         self.assertEqual((wc["G4"].value, wc["H4"].value), ("EXIT SIGN", 2))
 
+    def test_text_starting_with_equals_stays_text(self):
+        import openpyxl
+        project = {"name": "=HYPERLINK(\"http://x\")", "units": "m",
+                   "pages": [{"id": "p1", "name": "GF", "scale": {"pxPerM": 10}}],
+                   "tree": [_item("linear", "= see detail 3", [{"page": "p1", "points": [[0, 0], [100, 0]]}], allowance=20)]}
+        ws = openpyxl.load_workbook(io.BytesIO(export_xlsx.build(project)))["Summary"]
+        self.assertEqual((ws["A1"].data_type, ws["A1"].value), ("s", '=HYPERLINK("http://x")'))
+        self.assertEqual((ws["B5"].data_type, ws["B5"].value), ("s", "= see detail 3"))
+        self.assertEqual(ws["I5"].data_type, "f")                               # our own ROUNDUP formula is kept
+
     def test_swiftjob_round_trip(self):
         import zipfile
         from PIL import Image
@@ -552,7 +562,9 @@ class ApiTests(unittest.TestCase):
         try:
             for name in ("v1", "v2", "v3"):
                 p["name"] = name
-                self.assertEqual(self.call("PUT", f"/api/projects/{p['id']}", p)[0], 200)
+                st, res = self.call("PUT", f"/api/projects/{p['id']}", p)
+                self.assertEqual(st, 200)
+                p["modified"] = res["modified"]            # like the browser: the next save proves it saw this one
                 time.sleep(1.05)                           # backups are named by the second
         finally:
             store_mod.BACKUP_EVERY_S = old_every
@@ -586,6 +598,21 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(store.image_path(b["id"], copy["image"]).is_file())
         self.assertEqual(self.call("POST", f"/api/projects/{b['id']}/pages/copy", {"fromProject": a["id"], "image": "pgmissing.png"})[0], 400)
 
+    def test_rotate_page_image(self):
+        from PIL import Image
+        st, p = self.call("POST", "/api/projects", {"name": "Rotate"})
+        store = Store(self.tmp.name)
+        im = Image.new("RGB", (40, 30), "white")
+        im.putpixel((10, 5), (255, 0, 0))                                        # W = 40, H = 30
+        im.save(store.pages_dir(p["id"]) / "pgrot.png")
+        # same rule as rotatePage in web/js/pageops.js: right (x, y) -> (H - 1 - y, x), left (y, W - 1 - x) in pixels
+        for turns, size, red in ((1, (30, 40), (24, 10)), (3, (30, 40), (5, 29)), (2, (40, 30), (29, 24))):
+            st, res = self.call("POST", f"/api/projects/{p['id']}/pages/rotate", {"image": "pgrot.png", "turns": turns})
+            self.assertEqual((st, (res["width"], res["height"])), (200, size), turns)
+            with Image.open(store.image_path(p["id"], res["image"])) as out:
+                self.assertEqual(out.getpixel(red), (255, 0, 0), turns)
+        self.assertEqual(self.call("POST", f"/api/projects/{p['id']}/pages/rotate", {"image": "pgrot.png", "turns": 5})[0], 400)
+
     def test_bad_ids_and_paths_are_refused(self):
         self.assertEqual(self.call("GET", "/api/projects/..%2F..%2Fsecret")[0], 404)
         st, p = self.call("POST", "/api/projects", {"name": "x"})
@@ -597,6 +624,44 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(cm.exception.code, 404, path)
         with urllib.request.urlopen(self.base + "/") as r:
             self.assertIn(b"PlanCraft", r.read())
+
+    def test_foreign_host_and_quit_are_refused(self):
+        port = self.base.rsplit(":", 1)[1]
+        for path, method, headers in (("/api/projects", "GET", {"Host": f"evil.example:{port}"}),   # DNS rebinding
+                                      ("/api/quit", "POST", {})):                                   # no launcher header
+            req = urllib.request.Request(self.base + path, data=b"{}" if method == "POST" else None, method=method, headers=headers)
+            with self.assertRaises(urllib.error.HTTPError) as cm:
+                urllib.request.urlopen(req)
+            self.assertEqual(cm.exception.code, 403, path)
+        self.assertEqual(self.call("GET", "/api/ping")[0], 200)                  # still running
+
+    def test_stale_window_cannot_overwrite(self):
+        st, p = self.call("POST", "/api/projects", {"name": "Two windows"})
+        a, b = dict(p), dict(p)                                                  # both windows loaded the same version
+        a["name"] = "saved by A"
+        st, res = self.call("PUT", f"/api/projects/{p['id']}", a)
+        self.assertEqual(st, 200)
+        b["name"] = "saved by B"
+        self.assertEqual(self.call("PUT", f"/api/projects/{p['id']}", b)[0], 409)
+        self.assertEqual(self.call("POST", f"/api/projects/{p['id']}/save", b)[0], 409)   # the close-time save too
+        a["modified"] = res["modified"]
+        self.assertEqual(self.call("PUT", f"/api/projects/{p['id']}", a)[0], 200)   # A keeps saving normally
+        self.assertEqual(self.call("GET", f"/api/projects/{p['id']}")[1]["name"], "saved by A")
+
+    def test_prune_keeps_images_a_backup_needs(self):
+        import os
+        store = Store(self.tmp.name)
+        p = store.create("Prune")
+        d = store.project_dir(p["id"])
+        (d / "backups").mkdir()
+        (d / "backups" / "20260101-000000.json").write_text(json.dumps({"pages": [{"image": "pgold.png"}]}), encoding="utf-8")
+        old = time.time() - 7200
+        for name in ("pgold.png", "pgjunk.png"):
+            (d / "pages" / name).write_bytes(b"x")
+            os.utime(d / "pages" / name, (old, old))
+        self.assertEqual(store.prune_images(p["id"], p), 1)
+        self.assertTrue((d / "pages" / "pgold.png").is_file())                  # a backup still shows this page
+        self.assertFalse((d / "pages" / "pgjunk.png").is_file())
 
 
 if __name__ == "__main__":

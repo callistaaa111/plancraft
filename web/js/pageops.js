@@ -53,6 +53,34 @@ export async function cropToNewPage(page, rect) {
   return true;
 }
 
+// ---- rotate ----------------------------------------------------------------------------------------
+/** Turn a page by quarter turns clockwise (1, 2 or 3); its takeoff, notes and highlights turn with it. */
+export async function rotatePage(pageId, turns) {
+  const page = pageById(pageId);
+  if (!page) return;
+  const pid = S.project.id;
+  let res;
+  try {
+    res = await api.rotatePage(pid, page.image, turns);
+  } catch (err) { toast(err.message, 'error'); return; }
+  if (S.project?.id !== pid || !pageById(pageId)) return;
+  const W = page.width ?? (turns === 2 ? res.width : res.height), H = page.height ?? (turns === 2 ? res.height : res.width);
+  const turn = ([x, y]) => (turns === 1 ? [H - y, x] : turns === 2 ? [W - x, H - y] : [y, W - x]);
+  mutate(() => {
+    Object.assign(page, { image: res.image, width: res.width, height: res.height });
+    if (page.src) page.src = { ...page.src, turns: ((page.src.turns || 0) + turns) % 4 };
+    delete page.overlay;   // the revision overlay's alignment no longer fits: Compare lines it up again
+    for (const p of S.project.pages) if (p.overlay?.page === pageId) delete p.overlay;
+    for (const it of ix().items) for (const s of it.sections) if (s.page === pageId) s.points = s.points.map(turn);
+    for (const m of S.project.marks) {
+      if (m.page !== pageId) continue;
+      if (m.at) m.at = turn(m.at);
+      if (m.points) m.points = m.points.map(turn);
+    }
+  });
+  toast(`Page turned ${turns === 2 ? '180°' : `90° ${turns === 1 ? 'right' : 'left'}`}.`);
+}
+
 // ---- copy & paste ----------------------------------------------------------------------------------
 function readClip() {
   try {
