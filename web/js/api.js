@@ -63,6 +63,7 @@ export const autoCount = (id, image, rect, opts = {}) => req('POST', `/api/proje
 export const tintUrl = (id, image, color) => `/api/projects/${encodeURIComponent(id)}/pages/${encodeURIComponent(image)}/tint?color=${color}`;
 
 export const pageUrl = (projectId, page) => `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(page.image)}`;
+export const pageThumbUrl = (projectId, page) => `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(page.image)}/thumb`;
 export const exportUrl = projectId => `/api/projects/${encodeURIComponent(projectId)}/export.xlsx`;
 export const archiveUrl = projectId => `/api/projects/${encodeURIComponent(projectId)}/archive`;
 

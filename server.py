@@ -432,6 +432,8 @@ class Api(BaseHTTPRequestHandler):
                 return self.send_json(vision.find_symbols(st.image_path(pid, body.get("image")), body.get("rect"),
                                                           bool(body.get("rotations")), method=body.get("method") or "auto",
                                                           area=body.get("area")))
+            if rest[:1] == ["pages"] and len(rest) == 3 and rest[2] == "thumb" and method == "GET":  # page list
+                return self.send_file(st.page_thumbnail(pid, rest[1]), cache="max-age=86400")
             if rest[:1] == ["pages"] and len(rest) == 3 and rest[2] == "tint" and method == "GET":   # revision overlay
                 out = vision.tinted(st.image_path(pid, rest[1]), q.get("color") or "red", st.cache_dir(pid))
                 return self.send_file(out, cache="no-cache")

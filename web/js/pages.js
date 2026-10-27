@@ -2,6 +2,7 @@
 import { S, on, mutate, select, setPage, setTool, pageById, sectionsPerPage, ix } from './store.js';
 import { copyPage, pastePage, hasClip, rotatePage } from './pageops.js';
 import * as M from './measure.js';
+import * as api from './api.js';
 import { h } from './util.js';
 import { icon } from './icons.js';
 import { openMenu, confirmBox, promptText } from './dialogs.js';
@@ -102,6 +103,7 @@ export function render() {
     return h('div', {
       class: `row page-row${p.id === S.pageId ? ' sel' : ''}`, dataset: { id: p.id }, title: p.name,
     },
+    h('img', { class: 'page-thumb', src: api.pageThumbUrl(S.project.id, p), loading: 'lazy', alt: '' }),
     h('span', { class: 'ticon', html: icon('page') }),
     h('span', { class: 'pname' }, p.name, p.group ? h('span', { class: 'pgroup' }, p.group) : null),
     n ? h('span', { class: 'secs', title: `${n} takeoff section(s) on this page` }, n) : null,

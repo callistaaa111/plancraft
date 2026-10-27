@@ -16,14 +16,14 @@ Excel or a PlanSwift job. It also opens your existing `.SwiftJob` files, includi
 
 ## Download and install
 
-1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.1.1.exe`).
+1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.1.2.exe`).
 2. Run it. It installs for the current Windows user, so it does **not** need administrator rights.
 3. Start **PlanCraft** from the Desktop or Start menu. It opens in its own window; closing the window stops the
    server about 10 minutes later.
 
 Your projects live in `%LOCALAPPDATA%\PlanCraft\data` and are kept when you update or uninstall.
 
-**Portable:** download `PlanCraft-1.1.1-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
+**Portable:** download `PlanCraft-1.1.2-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
 `portable.txt` next to the executable to keep the projects in a `data` folder beside it.
 
 **From source** (Python 3.10+):
@@ -64,7 +64,8 @@ already installed; it adds the same shortcuts.
 
 - **Crop** (C) an area into a new page, rotate a page, or copy/paste a page within or between projects.
 - **Manage pages** (the panel button): rename, group, reorder, and tick several pages to apply a standard scale at
-  once.
+  once. The Pages list shows a small thumbnail of each sheet.
+- **UI scale** (Ctrl+K) offers 90%, 100%, 110% and 125% and remembers the choice.
 - **Search items** to jump to an item's page and zoom to its takeoff.
 - **Search project** (Ctrl+Shift+F) searches page names, items, notes and the text layer of PDF pages, then jumps to
   the page. If Tesseract is installed, **OCR scanned pages** makes image-only plans searchable too.

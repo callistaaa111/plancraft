@@ -128,6 +128,15 @@ $('#btnTheme').onclick = () => {
     || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   applyTheme(current === 'dark' ? 'light' : 'dark');
 };
+const applyUiScale = z => {
+  document.documentElement.style.zoom = z;
+  try { localStorage.setItem('plancraft.uiscale', String(z)); } catch { /* storage unavailable */ }
+  requestAnimationFrame(() => viewer.resize());
+};
+try {
+  const zoom = Number(localStorage.getItem('plancraft.uiscale'));
+  if (zoom >= 0.8 && zoom <= 1.5) applyUiScale(zoom);
+} catch { /* storage unavailable */ }
 $('#btnPrevPage').onclick = () => stepPage(-1);
 $('#btnNextPage').onclick = () => stepPage(1);
 $('#btnZoomIn').onclick = () => viewer.zoomAt(1.25);
@@ -653,6 +662,10 @@ function projectCommands() {
     { label: 'Toggle snap', hint: 'S', action: () => toggle('snap') },
     { label: 'Toggle focus', hint: 'G', action: () => toggle('focus') },
     { label: 'Save now', hint: 'Ctrl+S', action: () => flushSave().then(() => toast('Saved.')).catch(err => toast(err.message, 'error')) },
+    { label: 'UI scale: 90%', hint: 'View', action: () => applyUiScale(0.9) },
+    { label: 'UI scale: 100%', hint: 'View', action: () => applyUiScale(1) },
+    { label: 'UI scale: 110%', hint: 'View', action: () => applyUiScale(1.1) },
+    { label: 'UI scale: 125%', hint: 'View', action: () => applyUiScale(1.25) },
     { label: 'Keyboard shortcuts', hint: '?', action: () => showHelp() },
   ];
 }
