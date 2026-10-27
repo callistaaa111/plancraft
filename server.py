@@ -38,6 +38,7 @@ sys.path.insert(0, str(RESOURCE_DIR))
 import archive  # noqa: E402
 import compare  # noqa: E402
 import demo  # noqa: E402
+import folderbackup  # noqa: E402
 import importers  # noqa: E402
 import ocr  # noqa: E402
 import quote as quote_pdf  # noqa: E402
@@ -80,6 +81,29 @@ def default_data_dir() -> Path:
         return APP_DIR / "data"
     base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
     return Path(base) / "PlanCraft" / "data"
+
+def about(store: Store) -> dict:
+    """Version, folders and library versions for the About screen and its "Copy diagnostics" text."""
+    import platform
+    libs = {}
+    for label, name in (("PyMuPDF", "pymupdf"), ("OpenCV", "cv2"), ("NumPy", "numpy"), ("Pillow", "PIL"),
+                        ("openpyxl", "openpyxl")):
+        try:
+            libs[label] = str(getattr(__import__(name), "__version__", "?"))
+        except Exception:
+            libs[label] = "missing"
+    log = store.root / "plancraft.log"
+    tail = ""
+    if log.is_file():
+        with open(log, "rb") as fh:                 # the end of the log only: it grows across runs
+            fh.seek(max(0, log.stat().st_size - 8000))
+            tail = "\n".join(fh.read().decode("utf-8", "replace").splitlines()[-40:])
+    s = store.storage()
+    return {"version": __version__, "frozen": FROZEN, "app": str(APP_DIR), "data": str(store.root),
+            "log": str(log) if log.is_file() else None, "logTail": tail, "ocr": ocr.available(),
+            "python": platform.python_version(), "os": platform.platform(), "libs": libs,
+            "projects": s["projectCount"], "dataBytes": s["total"], "backup": folderbackup.config(store.root)}
+
 
 mimetypes.add_type("text/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
@@ -236,6 +260,15 @@ class Api(BaseHTTPRequestHandler):
             return self.send_json(demo.create(st), 201)
         if parts == ["storage"] and method == "GET":
             return self.send_json(st.storage())
+        if parts == ["about"] and method == "GET":
+            return self.send_json(about(st))
+        if parts == ["backup"]:                                   # optional copy of the data folder elsewhere
+            if method == "GET":
+                return self.send_json(folderbackup.config(st.root))
+            if method == "PUT":
+                return self.send_json(folderbackup.set_folder(st.root, self.read_json().get("folder")))
+        if parts == ["backup", "run"] and method == "POST":
+            return self.send_json({"task": tasks.start("backup", folderbackup.run, st.root).id}, 202)
         if parts == ["trash"] and method == "DELETE":
             return self.send_json(st.empty_trash())
 
@@ -624,6 +657,7 @@ def main(argv=None):
     print("Keep this window open while you work. Press Ctrl+C to stop.")
     if args.open:
         threading.Timer(0.6, lambda: open_window(url, args.app)).start()
+    threading.Thread(target=folderbackup.auto, args=(store.root,), daemon=True, name="folder-backup").start()
     if args.idle_exit:
         def watch():
             # open windows send a heartbeat every 30 s; once none has for idle_exit seconds, stop
