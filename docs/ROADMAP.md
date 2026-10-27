@@ -15,14 +15,13 @@ the calendar time is still dominated by review and real-plan testing, which is w
 
 Some of this landed earlier than planned, because it was cheap once the core model was in place:
 
-- **v1.1** — project-to-project comparison, page matching by source/sheet name, item quantity deltas and an Excel
-  revision report are in. Still open: automatic page-pair editing, a PDF revision report, and carrying takeoff across
-  revisions from the comparison screen.
-- **v1.2** — labour rates (a price-list Labour flag), overhead/contingency/markup/VAT in the Quote tab, and a Quote
-  sheet in Excel are in. Still open: productivity per trade, a client-facing proposal PDF, CSV takeoff import and
-  specification comparison.
-- **v1.3** — PDF-text search (Ctrl+Shift+F), auto-scale from printed text. Still open: OCR for scans, a symbol
-  library, batch auto-count with one review queue, legend masks and measurement provenance/review status.
+- **v1.1** — project comparison/deltas, proposal PDF, project templates, page manager and batch scale, bulk edit,
+  manual quantity adjustments, CSV export, duplicate/storage, command palette, theme, pinned projects and review
+  flags are in. Still open: automatic page-pair editing, a PDF revision report, and carrying takeoff across revisions.
+- **v1.2** — labour rates, overhead/contingency/markup/VAT and a client proposal PDF are in. Still open: productivity
+  per trade, CSV takeoff import and specification comparison.
+- **v1.3** — PDF-text search, auto-scale from printed text, optional Tesseract OCR, a saved-symbol library and batch
+  count are in. Still open: room detection, legend masks and fuller measurement provenance.
 - **v2.0** — portable project archives (export/import) are in. Still open: SQLite/incremental saves, folder backup,
   optional encryption and the migration runner.
 

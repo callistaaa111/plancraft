@@ -1,7 +1,7 @@
 // "Materials & prices": the price list and the assemblies (material recipes attached to items or folders).
 import { S, ix, mutate, qtyOf } from './store.js';
 import * as api from './api.js';
-import { h, uid, pickFiles, fmt } from './util.js';
+import { h, uid, pickFiles, fmt, download } from './util.js';
 import { icon } from './icons.js';
 import { modal, toast, confirmBox } from './dialogs.js';
 import { BASES, costing, money } from './pricing.js';
@@ -103,6 +103,13 @@ function quoteTab(render) {
   const s = (P().settings ||= {});
   const c = costing(P(), ix(), qtyOf);
   const set = (key, value) => mutate(() => { P().settings[key] = value; });
+  const field = (key, label, placeholder, wide = false) => {
+    const input = h('input', { type: 'text', value: s[key] ?? '', placeholder });
+    input.addEventListener('change', () => set(key, input.value.trim()));
+    return h('div', { class: wide ? 'field wide' : 'field' }, h('label', null, label), input);
+  };
+  const terms = h('textarea', { rows: 3, placeholder: 'Scope, exclusions, payment terms...' }, s.terms || '');
+  terms.addEventListener('change', () => set('terms', terms.value.trim()));
   const pct = (key, label, title) => h('tr', null,
     h('td', null, label),
     h('td', { class: 'num' }, (() => {
@@ -117,6 +124,16 @@ function quoteTab(render) {
   const cur = s.currency ?? '₱';
   return h('div', { class: 'mat-tab' },
     h('div', { class: 'hint' }, `Costs use the currency ${cur}. Mark a material as Labour to split it out; no separate labour table is needed.`),
+    h('div', { class: 'quote-fields' },
+      field('companyName', 'Company', 'Your company name'),
+      field('companyContact', 'Company contact', 'Phone / email / address'),
+      field('clientName', 'Client', 'Prepared for'),
+      field('projectAddress', 'Project address', 'Site or project address'),
+      field('validity', 'Valid for (days)', '30')),
+    h('div', { class: 'field' }, h('label', null, 'Proposal terms'), terms),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn primary', type: 'button', onclick: () => download(api.quoteUrl(S.project.id)) }, 'Download proposal PDF'),
+      h('span', { class: 'hint' }, 'Company, client and terms are saved with this project.')),
     h('div', { class: 'mat-scroll' }, h('table', { class: 'mat-table' },
       h('thead', null, h('tr', null, h('th', null, 'Setting'), h('th', { class: 'narrow' }, 'Percent'), h('th', null, 'What it does'))),
       h('tbody', null,

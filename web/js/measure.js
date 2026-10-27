@@ -98,7 +98,12 @@ export function itemQuantities(item, pagesById, units = 'm') {
     const d = num(props.depth);
     if (d) extra.push({ label: 'Volume', value: total * d * u.volF, unit: u.vol });
   }
-  return { qty: total, unit, perPage, extra, unscaled };
+  const adjust = num(props.adjust);
+  if (adjust) {
+    total += adjust;
+    extra.push({ label: 'Manual adjustment', value: adjust, unit });
+  }
+  return { qty: total, unit, perPage, extra, unscaled, adjust };
 }
 
 /** Quantity plus allowance, rounded up to a whole number (=ROUNDUP(Q*1.2,0) in the takeoff sheets). */
