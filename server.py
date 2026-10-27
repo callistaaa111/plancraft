@@ -37,6 +37,7 @@ sys.path.insert(0, str(RESOURCE_DIR))
 
 import archive  # noqa: E402
 import compare  # noqa: E402
+import demo  # noqa: E402
 import importers  # noqa: E402
 import ocr  # noqa: E402
 import quote as quote_pdf  # noqa: E402
@@ -231,6 +232,8 @@ class Api(BaseHTTPRequestHandler):
             threading.Timer(0.2, Api.httpd.shutdown).start()
             return self.send_json({"ok": True})
 
+        if parts == ["demo"] and method == "POST":
+            return self.send_json(demo.create(st), 201)
         if parts == ["storage"] and method == "GET":
             return self.send_json(st.storage())
         if parts == ["trash"] and method == "DELETE":

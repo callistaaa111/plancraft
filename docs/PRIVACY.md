@@ -12,7 +12,7 @@ found in tracked files.**
 
 | Check | Result |
 |---|---|
-| Tracked files | 83 |
+| Tracked files | 85 |
 | Client/job documents tracked (PDF, Office, CSV, DWG, SwiftJob, TIFF, ZIP, log) | **0** |
 | Other images tracked | 1, the synthetic README image |
 | Files over 5 MB tracked | 0 |

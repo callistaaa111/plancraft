@@ -682,6 +682,19 @@ class ArchiveTests(unittest.TestCase):
                 archive.import_project(store, path)
 
 
+class DemoTests(unittest.TestCase):
+    def test_demo_project_has_a_page_and_takeoff(self):
+        import demo
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data")
+            p = demo.create(store)
+            self.assertEqual(len(p["pages"]), 1)
+            self.assertTrue((store.project_dir(p["id"]) / "pages" / p["pages"][0]["image"]).is_file())
+            self.assertEqual(len(p["tree"]), 3)
+            self.assertTrue(p["materials"])
+            self.assertTrue(p["assemblies"])
+
+
 class SymbolTests(unittest.TestCase):
     def test_save_and_count_a_symbol(self):
         from PIL import Image, ImageDraw

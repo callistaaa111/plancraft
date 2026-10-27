@@ -72,6 +72,7 @@ hiddenimports = [
     "version",
     "archive",
     "compare",
+    "demo",
     "export_csv",
     "export_xlsx",
     "export_swiftjob",
