@@ -368,6 +368,24 @@ class PricingTests(unittest.TestCase):
         bom = {b["material"]["id"]: b for b in pricing.costing(project)["bom"]}
         self.assertAlmostEqual(bom["w"]["qty"], 36)                # still priced by the folder's Lighting circuit
 
+    def test_own_cost_lines_go_before_markup_in_totals_and_excel(self):
+        import openpyxl
+
+        import pricing
+        project = self.project()
+        project["settings"]["extras"] = [{"id": "x1", "name": "Permits", "type": "pct", "value": 2},
+                                         {"id": "x2", "name": "Mobilization", "type": "fixed", "value": 5000}]
+        c = pricing.costing(project)
+        self.assertEqual([(e["label"], round(e["amount"], 2)) for e in c["extras"]],
+                         [("Permits 2%", 29.4), ("Mobilization", 5000)])
+        self.assertAlmostEqual(c["total"], (1470 + 29.4 + 5000) * 1.1)      # markup 10% applies to both lines
+        ws = openpyxl.load_workbook(io.BytesIO(export_xlsx.build(project)))["Bill of Materials"]
+        f = {ws.cell(r, 5).value: ws.cell(r, 6).value for r in range(8, 16) if ws.cell(r, 5).value}
+        self.assertEqual(f["Permits 2%"], "=F8*0.02")
+        self.assertEqual(f["Mobilization"], "=5000")
+        self.assertEqual(f["Markup 10%"], "=SUM(F8:F12)*0.1")
+        self.assertEqual(f["TOTAL"], "=SUM(F8:F14)")
+
     def test_labour_and_quote_totals(self):
         import pricing
         project = {

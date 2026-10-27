@@ -118,6 +118,27 @@ function quoteTab(render) {
       return i;
     })()),
     h('td', { class: 'hint' }, title));
+  // the user's own cost lines (permits, mobilization, bond...): added after contingency, before markup
+  const extras = () => (P().settings.extras ||= []);
+  const editExtra = (id, fn) => { mutate(() => { const e = extras().find(x => x.id === id); if (e) fn(e); }); render(); };
+  const extraRow = e => h('tr', null,
+    h('td', null, (() => {
+      const i = h('input', { type: 'text', value: e.name || '', placeholder: 'e.g. Permits', 'aria-label': 'Cost line name' });
+      i.addEventListener('change', () => editExtra(e.id, x => { x.name = i.value.trim(); }));
+      return i;
+    })()),
+    h('td', { class: 'num' }, (() => {
+      const i = h('input', { type: 'number', step: '0.1', min: 0, value: e.value ?? 0, 'aria-label': 'Amount' });
+      i.addEventListener('change', () => editExtra(e.id, x => { x.value = Number(i.value) || 0; }));
+      const kind = h('select', { 'aria-label': 'Percent or fixed amount' },
+        h('option', { value: 'pct', selected: e.type !== 'fixed' }, '%'),
+        h('option', { value: 'fixed', selected: e.type === 'fixed' }, cur));
+      kind.addEventListener('change', () => editExtra(e.id, x => { x.type = kind.value; }));
+      return h('span', { class: 'inline' }, i, kind);
+    })()),
+    h('td', { class: 'hint' }, e.type === 'fixed' ? 'Fixed amount for the whole job, before markup' : 'Percent of the material + labour subtotal, before markup',
+      h('button', { class: 'btn ghost small icon-only', type: 'button', title: 'Remove this cost line', html: icon('trash'),
+        onclick: () => { mutate(() => { P().settings.extras = extras().filter(x => x.id !== e.id); }); render(); } })));
   const line = (label, value, strong = false) => h('div', { class: 'line' },
     h('span', { style: strong ? { fontWeight: 700 } : null }, label),
     h('span', { style: strong ? { fontWeight: 700 } : null }, money(value, P())));
@@ -131,6 +152,7 @@ function quoteTab(render) {
       line('Subtotal', c.subtotal, true),
       c.overheadAmount ? line(`Overhead ${c.overhead}%`, c.overheadAmount) : null,
       c.contingencyAmount ? line(`Contingency ${c.contingency}%`, c.contingencyAmount) : null,
+      ...c.extras.filter(e => e.amount).map(e => line(e.label, e.amount)),
       c.markupAmount ? line(`Markup ${c.markup}%`, c.markupAmount) : null,
       c.taxAmount ? line(`Tax ${c.tax}%`, c.taxAmount) : null,
       line('Total', c.total, true),
@@ -138,12 +160,19 @@ function quoteTab(render) {
     c.bom.length ? h('div', { class: 'hint' }, 'The Excel export has this breakdown in its Bill of Materials and Quote sheets.')
       : h('div', { class: 'callout' }, 'No assembled items yet: assign an assembly to an item or folder to see costs.'),
     h('div', { class: 'mat-scroll' }, h('table', { class: 'mat-table' },
-      h('thead', null, h('tr', null, h('th', null, 'Setting'), h('th', { class: 'narrow' }, 'Percent'), h('th', null, 'What it does'))),
+      h('thead', null, h('tr', null, h('th', null, 'Setting'), h('th', { class: 'narrow' }, 'Percent / amount'), h('th', null, 'What it does'))),
       h('tbody', null,
         pct('overhead', 'Overhead', 'Office and site overhead on the material + labour subtotal'),
         pct('contingency', 'Contingency', 'Risk allowance on subtotal + overhead'),
-        pct('markup', 'Markup', 'Profit on subtotal + overhead + contingency'),
-        pct('tax', 'VAT / tax', 'Tax on subtotal + overhead + contingency + markup')))),
+        ...extras().map(extraRow),
+        pct('markup', 'Markup', 'Profit on subtotal + overhead + contingency + your cost lines'),
+        pct('tax', 'VAT / tax', 'Tax on everything above')))),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn small', type: 'button', onclick: () => {
+        mutate(() => { extras().push({ id: uid('x'), name: '', type: 'pct', value: 0 }); });
+        render();
+      } }, '+ Add cost line'),
+      h('span', { class: 'hint' }, 'Permits, mobilization, bond, insurance... as a percent or a fixed amount.')),
     h('div', { class: 'quote-fields' },
       field('companyName', 'Company', 'Your company name'),
       field('companyContact', 'Company contact', 'Phone / email / address'),
