@@ -16,14 +16,14 @@ Excel or a PlanSwift job. It also opens your existing `.SwiftJob` files, includi
 
 ## Download and install
 
-1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.1.0.exe`).
+1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.1.1.exe`).
 2. Run it. It installs for the current Windows user, so it does **not** need administrator rights.
 3. Start **PlanCraft** from the Desktop or Start menu. It opens in its own window; closing the window stops the
    server about 10 minutes later.
 
 Your projects live in `%LOCALAPPDATA%\PlanCraft\data` and are kept when you update or uninstall.
 
-**Portable:** download `PlanCraft-1.1.0-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
+**Portable:** download `PlanCraft-1.1.1-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
 `portable.txt` next to the executable to keep the projects in a `data` folder beside it.
 
 **From source** (Python 3.10+):
