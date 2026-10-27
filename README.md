@@ -152,6 +152,7 @@ python -m unittest discover -s tests -v              # 46 tests
 ruff check .                                         # lint
 python -m coverage run -m unittest discover -s tests
 python -m coverage report -m
+python scripts/privacy_scan.py                       # no client documents or secrets
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1
 # or double-click "Build PlanCraft.bat"
 # PyInstaller app + portable zip + installer (installer needs Inno Setup)
