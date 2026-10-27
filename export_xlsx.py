@@ -11,6 +11,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 import pricing
+from compare import _walk as walk_items
 from measure import item_quantities, unit_info
 
 THIN = Side(style="thin", color="000000")
@@ -23,15 +24,6 @@ TYPE_LABEL = {"linear": "Linear", "area": "Area", "count": "Count"}
 
 # Circuit names: optional 2-letter site prefix, panel, circuit number, then anything else (e.g. AB-LP1-3 (NO HOMERUN)).
 CIRCUIT_NAME = re.compile(r"^(?:[A-Za-z]{2}-)?(?P<panel>.+?)-(?P<num>\d+(?:\s*&\s*\d+)?)\s*(?P<rest>.*)$")
-
-
-def walk_items(nodes, path=()):
-    """Yield (folder_path, item) in tree order."""
-    for n in nodes:
-        if n.get("kind") == "folder":
-            yield from walk_items(n.get("children") or [], path + (n.get("name") or "Folder",))
-        else:
-            yield " / ".join(path), n
 
 
 def _header(ws, row, titles, widths=None):
@@ -175,7 +167,8 @@ def build(project: dict) -> bytes:
                     desc = f"{desc} ({', '.join(sorted(flags))})".strip()
                 wc.cell(row, 1, int(num) if num.isdigit() else num)
                 wc.cell(row, 2, desc)
-                wc.cell(row, 3, round(lm, 1))
+                # full length, shown to 1 decimal: rounding the value first could round the allowance down a metre
+                wc.cell(row, 3, round(lm, 4)).number_format = "0.0"
                 formula(wc, row, 4, f"=ROUNDUP(C{row}*{1 + float(allow) / 100:g},0)")
                 wc.cell(row, 5, spec)
                 for col in range(1, 6):

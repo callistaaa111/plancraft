@@ -158,10 +158,11 @@ def import_pdf(task, pdf_path: str | Path, out_dir: Path, filename: str, dpi: fl
                 text = page.get_text("text")
             except Exception:
                 text = ""
+            # with the PDF kept, search reads its text from there: no copy in project.json, rewritten on every save
             pages.append({"id": pid, "name": name, "image": f"{pid}.png", "width": pix.width, "height": pix.height,
                           "dpi": round(eff, 3), "scale": detect_scale(text, eff), "source": filename,
-                          "sourcePage": i + 1, "text": text[:20000] if text else None,
-                          **({"src": {"file": kept, "page": i}} if kept else {})})
+                          "sourcePage": i + 1, "hasText": bool(text.strip()),
+                          **({"src": {"file": kept, "page": i}} if kept else {"text": text[:20000] or None})})
             pix = None
         task.progress(len(idx), len(idx), "Done")
         return {"pages": pages}

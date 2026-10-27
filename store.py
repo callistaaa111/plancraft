@@ -49,6 +49,20 @@ def new_project(pid: str, name: str, units: str = "metric") -> dict:
     }
 
 
+def count_takeoff(tree) -> tuple[int, int]:
+    """(items, sections) in a takeoff tree, folders included at any depth."""
+    items = sections = 0
+    stack = list(tree or [])
+    while stack:
+        n = stack.pop()
+        if n.get("kind") == "folder":
+            stack.extend(n.get("children") or [])
+        else:
+            items += 1
+            sections += len(n.get("sections") or [])
+    return items, sections
+
+
 def _write_json_atomic(path: Path, data) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     with open(tmp, "w", encoding="utf-8") as fh:
@@ -97,15 +111,7 @@ class Store:
                 p = json.loads(f.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            items = sections = 0
-            stack = list(p.get("tree") or [])
-            while stack:
-                n = stack.pop()
-                if n.get("kind") == "folder":
-                    stack.extend(n.get("children") or [])
-                else:
-                    items += 1
-                    sections += len(n.get("sections") or [])
+            items, sections = count_takeoff(p.get("tree"))
             out.append({"id": d.name, "name": p.get("name") or d.name, "units": p.get("units"),
                         "pages": len(p.get("pages") or []), "items": items, "sections": sections,
                         "modified": p.get("modified") or "", "created": p.get("created") or "",
@@ -173,15 +179,7 @@ class Store:
                 p = json.loads(f.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
-            items = sections = 0
-            stack = list(p.get("tree") or [])
-            while stack:
-                n = stack.pop()
-                if n.get("kind") == "folder":
-                    stack.extend(n.get("children") or [])
-                else:
-                    items += 1
-                    sections += len(n.get("sections") or [])
+            items, sections = count_takeoff(p.get("tree"))
             out.append({"name": f.name, "at": datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds"),
                         "saved": p.get("modified") or "", "pages": len(p.get("pages") or []), "items": items,
                         "sections": sections, "beforeRestore": "-before-restore" in f.name})
