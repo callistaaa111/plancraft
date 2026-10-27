@@ -14,9 +14,9 @@ import time
 import unittest
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 import numpy as np
-from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(APP))
@@ -25,6 +25,7 @@ import export_xlsx  # noqa: E402
 import importers  # noqa: E402
 import measure  # noqa: E402
 from store import Store  # noqa: E402
+
 
 class _Task:
     def progress(self, *a, **k):
@@ -35,6 +36,7 @@ def make_swiftjob(path: Path) -> None:
     """A small PlanSwift-style job: one 400x300 page at 10 px/m, a folder with a linear and a count item."""
     import xml.etree.ElementTree as ET
     import zipfile
+
     from PIL import Image
 
     def item(parent, props, extra=None):
@@ -272,6 +274,7 @@ class VisionTests(unittest.TestCase):
     def test_dots_on_wires(self):
         """Lights drawn as solid dots on their wires, among hatching, text and grey columns."""
         import cv2
+
         import vision
         with tempfile.TemporaryDirectory() as tmp:
             img = np.full((700, 1000), 255, np.uint8)
@@ -299,6 +302,7 @@ class VisionTests(unittest.TestCase):
 
     def test_tinted_overlay_image(self):
         import cv2
+
         import vision
         with tempfile.TemporaryDirectory() as tmp:
             path, _ = self._plan(tmp)
@@ -362,6 +366,7 @@ class PricingTests(unittest.TestCase):
 
     def test_price_list_import(self):
         import openpyxl
+
         import pricelist
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "prices.xlsx"
@@ -413,6 +418,7 @@ class PrintTests(unittest.TestCase):
 
     def test_print_pages(self):
         import pymupdf as fitz
+
         import printpdf
         with tempfile.TemporaryDirectory() as tmp:
             d, project = self._project(tmp)
@@ -472,7 +478,9 @@ class ExportTests(unittest.TestCase):
 
     def test_swiftjob_round_trip(self):
         import zipfile
+
         from PIL import Image
+
         import export_swiftjob
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
@@ -520,8 +528,9 @@ class ExportTests(unittest.TestCase):
 class ApiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import server
         from http.server import ThreadingHTTPServer
+
+        import server
         cls.tmp = tempfile.TemporaryDirectory()
         server.Api.store = Store(cls.tmp.name)
         cls.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.Api)
@@ -542,6 +551,42 @@ class ApiTests(unittest.TestCase):
                 return r.status, json.loads(r.read() or b"{}")
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read() or b"{}")
+
+    def test_ping_reports_version(self):
+        from version import __version__
+        st, info = self.call("GET", "/api/ping")
+        self.assertEqual(st, 200)
+        self.assertEqual(info["app"], "PlanCraft")
+        self.assertEqual(info["version"], __version__)
+        self.assertIn("code", info)
+        with urllib.request.urlopen(self.base + "/api/ping") as r:
+            self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
+            self.assertEqual(r.headers["X-Frame-Options"], "DENY")
+
+    def test_same_origin_helper(self):
+        import server
+        self.assertTrue(server.same_origin(80, "http://127.0.0.1"))
+        self.assertTrue(server.same_origin(8791, "http://localhost:8791"))
+        self.assertFalse(server.same_origin(8791, "http://127.0.0.1:8792"))
+        self.assertFalse(server.same_origin(8791, "https://127.0.0.1:8791"))
+        self.assertFalse(server.same_origin(8791, "null"))
+
+    def test_cross_site_writes_are_refused(self):
+        body = json.dumps({"name": "csrf"}).encode()
+        for headers in ({"Origin": "https://evil.example"}, {"Sec-Fetch-Site": "cross-site"}):
+            req = urllib.request.Request(self.base + "/api/projects", data=body, method="POST",
+                                         headers={"Content-Type": "text/plain", **headers})
+            with self.assertRaises(urllib.error.HTTPError) as caught:
+                urllib.request.urlopen(req)
+            self.assertEqual(caught.exception.code, 403)
+            caught.exception.close()
+        # the real app posts from its own origin, and that is still allowed
+        req = urllib.request.Request(self.base + "/api/projects", data=body, method="POST",
+                                     headers={"Content-Type": "application/json", "Origin": self.base})
+        with urllib.request.urlopen(req) as r:
+            self.assertEqual(r.status, 201)
+            project_id = json.loads(r.read())["id"]
+        self.call("DELETE", f"/api/projects/{project_id}")
 
     def test_project_roundtrip_and_delete(self):
         st, p = self.call("POST", "/api/projects", {"name": "Office Lighting", "units": "metric"})
