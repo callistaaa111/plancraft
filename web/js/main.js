@@ -317,6 +317,12 @@ initProps($('#props'), {
 });
 initHome($('#projectList'), { exportProject: id => download(api.exportUrl(id)), exportSwiftJob: id => exportSwiftJob(id) });
 
+// Show the running build on the projects screen (the server knows its own version).
+api.ping().then(info => {
+  const tag = $('#appVersion');
+  if (tag && info.version) tag.textContent = `v${info.version}`;
+}).catch(() => { /* an older server without /api/ping version */ });
+
 // resizable panels, remembered in this browser
 const ws = $('#workspace');
 function loadLayout() {

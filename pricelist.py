@@ -78,19 +78,22 @@ def parse(path: Path, filename: str) -> dict:
             continue
         hi, dc, uc, pc, cc = found
         out, heading = [], ""
+
+        def cell(j, row):
+            return row[j] if j is not None and j < len(row) else None
+
         for row in rows[hi + 1:]:
-            cell = lambda j: row[j] if j is not None and j < len(row) else None   # noqa: E731
-            name = _text(cell(dc))
+            name = _text(cell(dc, row))
             if not name:
                 continue
-            price = _number(cell(pc))
-            unit = _text(cell(uc))
+            price = _number(cell(pc, row))
+            unit = _text(cell(uc, row))
             if price is None:
                 if not unit:
                     heading = name            # a heading line between groups
                 continue
             out.append({"name": name, "unit": unit, "price": round(price, 4),
-                        "category": _text(cell(cc)) or heading})
+                        "category": _text(cell(cc, row)) or heading})
         if out and (not best or len(out) > len(best["rows"])):
             best = {"sheet": sheet, "rows": out}
     if not best:

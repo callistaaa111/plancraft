@@ -19,25 +19,59 @@ import threading
 import time
 import urllib.request
 import webbrowser
-from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlparse
 
-APP_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(APP_DIR))
+FROZEN = bool(getattr(sys, "frozen", False))
+
+if FROZEN:
+    # PyInstaller one-folder build: PlanCraft.exe lives in the install folder; the read-only program files
+    # (web/, bundled modules) are unpacked to sys._MEIPASS.
+    APP_DIR = Path(sys.executable).resolve().parent
+    RESOURCE_DIR = Path(getattr(sys, "_MEIPASS", APP_DIR))
+else:
+    APP_DIR = Path(__file__).resolve().parent
+    RESOURCE_DIR = APP_DIR
+sys.path.insert(0, str(RESOURCE_DIR))
 
 import importers  # noqa: E402
-import vision  # noqa: E402
 import tasks  # noqa: E402
+import vision  # noqa: E402
 from store import Conflict, Store  # noqa: E402
+from version import __version__  # noqa: E402
 
-WEB_DIR = APP_DIR / "web"
+WEB_DIR = RESOURCE_DIR / "web"
 DEFAULT_PORT = 8791
 MAX_JSON = 300 * 1024 * 1024
-# when the program files last changed: a newer launch replaces a server still running older code
-CODE_STAMP = max(f.stat().st_mtime for f in APP_DIR.glob("*.py"))
+# A newer launch replaces a server still running older code. In a frozen build there are no .py files:
+# use the executable's timestamp, which changes with every release.
+CODE_STAMP = (int(Path(sys.executable).stat().st_mtime) if FROZEN
+              else int(max(f.stat().st_mtime for f in APP_DIR.glob("*.py"))))
 CHUNK = 1024 * 1024
+
+
+def same_origin(port: int, origin: str) -> bool:
+    """Is this Origin the local app itself? Handles the omitted default port (http://127.0.0.1 for port 80)."""
+    try:
+        u = urlparse(origin)
+        return u.scheme == "http" and u.hostname in ("127.0.0.1", "localhost") and (u.port or 80) == port
+    except ValueError:
+        return False
+
+
+def default_data_dir() -> Path:
+    r"""Where projects live. Source checkout: ./data next to server.py. Installed app: %LOCALAPPDATA%\PlanCraft\data
+    (survives upgrades and uninstall); a portable copy with portable.txt next to the exe keeps data beside it."""
+    env = os.environ.get("PLANCRAFT_DATA")
+    if env:
+        return Path(env)
+    if not FROZEN:
+        return APP_DIR / "data"
+    if (APP_DIR / "portable.txt").is_file():
+        return APP_DIR / "data"
+    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    return Path(base) / "PlanCraft" / "data"
 
 mimetypes.add_type("text/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
@@ -45,12 +79,20 @@ mimetypes.add_type("image/svg+xml", ".svg")
 
 
 class Api(BaseHTTPRequestHandler):
-    server_version = "PlanCraft/1.0"
+    server_version = f"PlanCraft/{__version__}"
     store: Store = None  # set in main()
     last_beat = 0.0      # last heartbeat from an open window (for --idle-exit)
     httpd = None         # set in main(), so /api/quit can stop the server
 
     # ---- plumbing -----------------------------------------------------------------------------------
+    def end_headers(self):
+        # Small hardening for a local web app: never let a page sniff a different type, frame PlanCraft, or leak
+        # the local URL through Referer.
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        super().end_headers()
+
     def log_message(self, fmt, *args):
         if len(args) >= 2 and str(args[1])[:1] in ("4", "5"):     # only log failed requests
             sys.stderr.write("%s\n" % (fmt % args))
@@ -100,6 +142,14 @@ class Api(BaseHTTPRequestHandler):
         port = self.server.server_address[1]
         if self.headers.get("Host") not in (f"127.0.0.1:{port}", f"localhost:{port}"):
             return self.fail(403, "Not allowed.")
+        # Refuse state changes a different web page tries to make against the local API (CSRF). Same-origin fetches
+        # and non-browser clients (no Origin, no Sec-Fetch-Site) still work.
+        if method in ("POST", "PUT", "DELETE"):
+            origin = self.headers.get("Origin")
+            if origin and not same_origin(port, origin):
+                return self.fail(403, "Cross-site request refused.")
+            if self.headers.get("Sec-Fetch-Site") == "cross-site":
+                return self.fail(403, "Cross-site request refused.")
         try:
             if path.startswith("/api/"):
                 return self.api(method, path[5:], q)
@@ -162,7 +212,8 @@ class Api(BaseHTTPRequestHandler):
         if parts == ["ping"]:
             if q.get("beat"):
                 Api.last_beat = time.time()          # an open PlanCraft window says hello
-            return self.send_json({"app": "PlanCraft", "code": CODE_STAMP})
+            return self.send_json({"app": "PlanCraft", "code": CODE_STAMP, "version": __version__,
+                                   "frozen": FROZEN})
 
         if parts == ["quit"] and method == "POST":
             # only PlanCraft's own launcher sends this header (a web page cannot without the server allowing it)
@@ -356,14 +407,20 @@ def open_window(url: str, app: bool) -> None:
 
 
 def quiet_console(data_dir: str) -> None:
-    """Started without a console (pythonw, desktop shortcut): send output and errors to data/plancraft.log."""
-    if sys.stdout is not None and sys.stderr is not None:
+    """Started without a console (the installed app, pythonw, a desktop shortcut): send output and errors to
+    data/plancraft.log. The frozen build always logs, because a windowed app has no console and a startup error
+    would otherwise disappear."""
+    if not FROZEN and sys.stdout is not None and sys.stderr is not None:
         return
     Path(data_dir).mkdir(parents=True, exist_ok=True)
     log = open(Path(data_dir) / "plancraft.log", "a", encoding="utf-8", buffering=1)
-    log.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} PlanCraft started ---\n")
-    sys.stdout = sys.stdout or log
-    sys.stderr = sys.stderr or log
+    log.write(f"\n--- {time.strftime('%Y-%m-%d %H:%M:%S')} PlanCraft {__version__} starting ---\n")
+    if FROZEN:
+        sys.stdout = log
+        sys.stderr = log
+    else:
+        sys.stdout = sys.stdout or log
+        sys.stderr = sys.stderr or log
 
 
 def running_server(port) -> dict | None:
@@ -399,11 +456,17 @@ def replace_old_server(port, info) -> bool:
 
 
 def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    if FROZEN and not argv:
+        # Double-clicking PlanCraft.exe: open the app window and stop the server about 10 minutes after it closes.
+        argv = ["--open", "--app", "--idle-exit", "600"]
     ap = argparse.ArgumentParser(description="PlanCraft takeoff app")
     ap.add_argument("command", nargs="?", default="serve", choices=["serve", "import"])
     ap.add_argument("file", nargs="?")
     ap.add_argument("--port", type=int, default=int(os.environ.get("PLANCRAFT_PORT", DEFAULT_PORT)))
-    ap.add_argument("--data", default=os.environ.get("PLANCRAFT_DATA", str(APP_DIR / "data")))
+    ap.add_argument("--version", action="version", version=f"PlanCraft {__version__}")
+    ap.add_argument("--data", default=str(default_data_dir()))
     ap.add_argument("--open", action="store_true", help="open the app in the browser")
     ap.add_argument("--app", action="store_true", help="open it in its own app window (Edge or Chrome)")
     ap.add_argument("--idle-exit", type=int, default=0, metavar="SECONDS",
@@ -433,7 +496,7 @@ def main(argv=None):
     httpd = ThreadingHTTPServer(("127.0.0.1", args.port), Api)
     httpd.daemon_threads = True
     Api.httpd = httpd
-    print(f"PlanCraft is running at {url}  (projects in {store.root})")
+    print(f"PlanCraft {__version__} ({'installed' if FROZEN else 'source'}) is running at {url}  (projects in {store.root})")
     print("Keep this window open while you work. Press Ctrl+C to stop.")
     if args.open:
         threading.Timer(0.6, lambda: open_window(url, args.app)).start()

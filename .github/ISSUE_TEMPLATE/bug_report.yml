@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in PlanCraft is wrong, crashes, or gives a bad quantity
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Please **do not attach client plans, takeoff files, or price lists**
+        unless you have permission to share them. A cropped screenshot or a made-up sample is enough.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a project with ...
+        2. Set the scale to ...
+        3. Click ...
+        4. See ...
+  - type: input
+    id: version
+    attributes:
+      label: PlanCraft version
+      description: Shown at the top of the Projects screen (for example v1.0.0).
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How are you running PlanCraft?
+      options:
+        - Windows installer
+        - Portable zip
+        - From source (python server.py)
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      placeholder: Windows 11 24H2
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log (optional)
+      description: "Installed app: %LOCALAPPDATA%\\PlanCraft\\data\\plancraft.log. Paste the last few lines."
+      render: text

@@ -179,7 +179,7 @@ def draw_marks(sh: Sheet, project, page, kind):
         maxw = float(st["width"]) * f
         lines = _wrap(fitz, st["text"], font, fs, maxw - pad * 2 - 4)
         sized = m.get("height") is not None
-        w = maxw if sized else min(maxw, max(40 * f, max(fitz.get_text_length(l, fontname=font, fontsize=fs) for l in lines) + pad * 2 + 4))
+        w = maxw if sized else min(maxw, max(40 * f, max(fitz.get_text_length(line, fontname=font, fontsize=fs) for line in lines) + pad * 2 + 4))
         lh = fs * 1.3
         text_h = len(lines) * lh + pad * 1.2
         h = max(text_h, float(m["height"]) * f if sized else 0)
@@ -222,7 +222,7 @@ def legend_rows(project, page, include_hidden=False):
     return rows
 
 
-def draw_legend(fitz, pg, rows, area: "fitz.Rect", corner: str, k: float):
+def draw_legend(fitz, pg, rows, area, corner: str, k: float):
     if not rows:
         return
     fs = max(5.0, 7 * k)

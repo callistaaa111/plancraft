@@ -9,15 +9,15 @@ import io
 import math
 import re
 import shutil
-from math import gcd
 import threading
 import xml.etree.ElementTree as ET
 import zipfile
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from math import gcd
 from pathlib import Path
 
-from store import new_id, new_project, DEFAULT_SETTINGS
+from store import DEFAULT_SETTINGS, new_id, new_project
 
 MAX_SIDE = 10000          # px; larger sheets get a lower DPI so the browser stays responsive
 INCH_M = 0.0254
@@ -234,7 +234,7 @@ def crop_page(src: Path, out_dir: Path, rect) -> dict:
     try:
         x, y, w, h = (float(v) for v in rect)
     except (TypeError, ValueError):
-        raise ValueError("The crop area is not valid.")
+        raise ValueError("The crop area is not valid.") from None
     Image = _open_image_lib()
     with Image.open(src) as im:
         x0, y0 = max(0, math.floor(x)), max(0, math.floor(y))
