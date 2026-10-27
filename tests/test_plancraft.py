@@ -732,6 +732,11 @@ class DemoTests(unittest.TestCase):
             self.assertEqual(len(p["tree"]), 3)
             self.assertTrue(p["materials"])
             self.assertTrue(p["assemblies"])
+            # every section has an id (the viewer matches the selected section by id) and the quote is not empty
+            items = [i for f in p["tree"] for i in f["children"]]
+            self.assertTrue(all(s.get("id") for i in items for s in i["sections"]))
+            import pricing
+            self.assertTrue(any(a for _, _, a in pricing.walk(p["tree"], {a["id"] for a in p["assemblies"]})))
 
 
 class SymbolTests(unittest.TestCase):

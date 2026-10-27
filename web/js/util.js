@@ -89,3 +89,16 @@ export function pickFiles(accept, multiple = false) {
     input.click();
   });
 }
+
+/** UI scale (90-125%), remembered in this browser. Set from the About window or the command menu (Ctrl+K). */
+export function applyUiScale(z) {
+  document.documentElement.style.zoom = z;
+  try { localStorage.setItem('plancraft.uiscale', String(z)); } catch { /* storage unavailable */ }
+}
+export function savedUiScale() {
+  try {
+    const z = Number(localStorage.getItem('plancraft.uiscale'));
+    if (z >= 0.8 && z <= 1.5) return z;
+  } catch { /* storage unavailable */ }
+  return 1;
+}

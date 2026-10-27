@@ -1,6 +1,6 @@
 // The projects screen.
 import * as api from './api.js';
-import { h, timeAgo, pickFiles, download } from './util.js';
+import { h, timeAgo, pickFiles, download, applyUiScale, savedUiScale } from './util.js';
 import { icon } from './icons.js';
 import { modal, openMenu, confirmBox, promptText, toast, progressBox } from './dialogs.js';
 import { openRevisionCompare } from './revisions.js';
@@ -209,6 +209,9 @@ export async function openAbout() {
     body: h('div', { class: 'rev-compare' },
       h('p', { style: { margin: 0 } }, 'Free, offline construction takeoff. MIT licence. Your projects never leave this computer.'),
       h('table', { class: 'pp-table' }, h('tbody', null, rows.map(([k, v]) => h('tr', null, h('td', null, k), h('td', null, h('code', null, v)))))),
+      h('label', { class: 'inline' }, 'Text and button size',
+        h('select', { style: { width: 'auto' }, onchange: e => applyUiScale(Number(e.target.value)) },
+          [0.9, 1, 1.1, 1.25].map(z => h('option', { value: z, selected: z === savedUiScale() }, `${Math.round(z * 100)}%`)))),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', type: 'button', onclick: async () => {
           try { await navigator.clipboard.writeText(text); toast('Diagnostics copied. Paste them into your bug report.'); }
