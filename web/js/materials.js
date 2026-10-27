@@ -122,25 +122,9 @@ function quoteTab(render) {
     h('span', { style: strong ? { fontWeight: 700 } : null }, label),
     h('span', { style: strong ? { fontWeight: 700 } : null }, money(value, P())));
   const cur = s.currency ?? '₱';
+  // the total comes first, so a proposal is never downloaded without seeing what it adds up to
   return h('div', { class: 'mat-tab' },
     h('div', { class: 'hint' }, `Costs use the currency ${cur}. Mark a material as Labour to split it out; no separate labour table is needed.`),
-    h('div', { class: 'quote-fields' },
-      field('companyName', 'Company', 'Your company name'),
-      field('companyContact', 'Company contact', 'Phone / email / address'),
-      field('clientName', 'Client', 'Prepared for'),
-      field('projectAddress', 'Project address', 'Site or project address'),
-      field('validity', 'Valid for (days)', '30')),
-    h('div', { class: 'field' }, h('label', null, 'Proposal terms'), terms),
-    h('div', { class: 'btn-row' },
-      h('button', { class: 'btn primary', type: 'button', onclick: () => download(api.quoteUrl(S.project.id)) }, 'Download proposal PDF'),
-      h('span', { class: 'hint' }, 'Company, client and terms are saved with this project.')),
-    h('div', { class: 'mat-scroll' }, h('table', { class: 'mat-table' },
-      h('thead', null, h('tr', null, h('th', null, 'Setting'), h('th', { class: 'narrow' }, 'Percent'), h('th', null, 'What it does'))),
-      h('tbody', null,
-        pct('overhead', 'Overhead', 'Office and site overhead on the material + labour subtotal'),
-        pct('contingency', 'Contingency', 'Risk allowance on subtotal + overhead'),
-        pct('markup', 'Markup', 'Profit on subtotal + overhead + contingency'),
-        pct('tax', 'VAT / tax', 'Tax on subtotal + overhead + contingency + markup')))),
     h('div', { class: 'qtybox' },
       line('Materials', c.materials),
       line('Labour', c.labour),
@@ -152,7 +136,24 @@ function quoteTab(render) {
       line('Total', c.total, true),
       h('div', { class: 'line' }, h('span', null, 'Different priced lines'), h('span', null, String(c.bom.length)))),
     c.bom.length ? h('div', { class: 'hint' }, 'The Excel export has this breakdown in its Bill of Materials and Quote sheets.')
-      : h('div', { class: 'hint' }, 'No assembled items yet: assign an assembly to an item or folder to see costs.'));
+      : h('div', { class: 'callout' }, 'No assembled items yet: assign an assembly to an item or folder to see costs.'),
+    h('div', { class: 'mat-scroll' }, h('table', { class: 'mat-table' },
+      h('thead', null, h('tr', null, h('th', null, 'Setting'), h('th', { class: 'narrow' }, 'Percent'), h('th', null, 'What it does'))),
+      h('tbody', null,
+        pct('overhead', 'Overhead', 'Office and site overhead on the material + labour subtotal'),
+        pct('contingency', 'Contingency', 'Risk allowance on subtotal + overhead'),
+        pct('markup', 'Markup', 'Profit on subtotal + overhead + contingency'),
+        pct('tax', 'VAT / tax', 'Tax on subtotal + overhead + contingency + markup')))),
+    h('div', { class: 'quote-fields' },
+      field('companyName', 'Company', 'Your company name'),
+      field('companyContact', 'Company contact', 'Phone / email / address'),
+      field('clientName', 'Client', 'Prepared for'),
+      field('projectAddress', 'Project address', 'Site or project address'),
+      field('validity', 'Valid for (days)', '30')),
+    h('div', { class: 'field' }, h('label', null, 'Proposal terms'), terms),
+    h('div', { class: 'btn-row' },
+      h('button', { class: 'btn primary', type: 'button', onclick: () => download(api.quoteUrl(S.project.id)) }, 'Download proposal PDF'),
+      h('span', { class: 'hint' }, 'Company, client and terms are saved with this project.')));
 }
 
 async function importPrices(render) {

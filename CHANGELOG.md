@@ -12,6 +12,24 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - **Folder backup** (Storage): copies new and changed files of the data folder to a folder you choose (OneDrive, a
   USB drive) every 30 minutes and on demand. It never deletes there; a failed automatic backup is shown in Storage.
 - The keyboard shortcuts list now includes Ctrl+K, Ctrl+Shift+F and project search.
+- **Proposal PDF (quote)** in the Export menu; **Text and button size** in About: type any size from 80% to 150%.
+
+### Changed
+
+- **More room for the plan.** The properties panel starts closed (P or its x toggles it) and slides over the plan on
+  narrow windows; project settings (units, currency, markup, allowances, backups) moved to a **Project** window; notes,
+  highlighter and Compare moved into a **More** pop-out, so the toolbar stays on one row. At 1366x768 the plan gets
+  66% of the screen instead of 45%.
+- Quote tab shows the totals before the proposal fields and Download button; the Materials tabs stay in view.
+- Pale takeoff colours (yellow, lime, pastels) get a dark edge so they show on white paper; light-theme grey text and
+  input borders are darker to meet WCAG AA.
+- The demo prices its downlights through an assembly, so its quote shows real totals.
+
+### Fixed
+
+- Selecting a count item made its own markers vanish from the plan (and froze the status hint) when its sections had
+  no id, as in the demo.
+- Price list rows were three lines tall with the Labour column empty: a workspace style leaked into the table.
 
 ## [1.1.3] - 2026-10-27
 
