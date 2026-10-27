@@ -27,6 +27,20 @@ export const restoreBackup = (id, name) => req('POST', `/api/projects/${encodeUR
 export const getTask = id => req('GET', `/api/tasks/${encodeURIComponent(id)}`);
 export const compareProjects = (id, other) => req('POST', `/api/projects/${encodeURIComponent(id)}/compare`, { other });
 export const searchProject = (id, q) => req('GET', `/api/projects/${encodeURIComponent(id)}/search?q=${encodeURIComponent(q)}`);
+export const quoteUrl = id => `/api/projects/${encodeURIComponent(id)}/quote.pdf`;
+export const csvUrl = id => `/api/projects/${encodeURIComponent(id)}/export.csv`;
+export const listTemplates = () => req('GET', '/api/templates');
+export const saveTemplate = (project, name) => req('POST', '/api/templates', { project, name });
+export const deleteTemplate = id => req('DELETE', `/api/templates/${encodeURIComponent(id)}`);
+export const createProjectFromTemplate = (name, template) => req('POST', '/api/projects', { name, template });
+export const duplicateProject = (id, name) => req('POST', `/api/projects/${encodeURIComponent(id)}/duplicate`, { name });
+export const storage = () => req('GET', '/api/storage');
+export const emptyTrash = () => req('DELETE', '/api/trash');
+export const ocrProject = id => req('POST', `/api/projects/${encodeURIComponent(id)}/ocr`, {});
+export const listSymbols = id => req('GET', `/api/projects/${encodeURIComponent(id)}/symbols`);
+export const saveSymbol = (id, body) => req('POST', `/api/projects/${encodeURIComponent(id)}/symbols`, body);
+export const deleteSymbol = (id, sid) => req('DELETE', `/api/projects/${encodeURIComponent(id)}/symbols/${encodeURIComponent(sid)}`);
+export const countSymbol = (id, sid, pages) => req('POST', `/api/projects/${encodeURIComponent(id)}/symbols/${encodeURIComponent(sid)}/count`, { pages });
 
 /** POST the comparison and return the Excel workbook as a Blob. */
 export async function compareExcel(id, other) {

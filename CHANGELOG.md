@@ -3,6 +3,34 @@
 All notable changes to PlanCraft. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-10-27
+
+The estimating and daily-work release: a proposal PDF, project templates, page management, bulk editing, optional OCR
+and a saved-symbol library, plus the quick wins from the 1.0 feedback.
+
+### Added
+
+- **Proposal PDF:** the Quote tab now captures company, client, project address, validity and terms, and produces a
+  one-page client proposal from the same cost build-up. Currency is written as PHP/EUR/GBP when the PDF font cannot
+  show the symbol.
+- **Project templates:** save the price list, assemblies, folder/item skeleton and settings from a project, then create
+  new projects from them. Pages and takeoff sections are never copied.
+- **Manage pages:** rename/group pages, reorder them, and tick several pages to apply a standard scale in one go.
+- **Bulk edit:** select many items and change colour, unit, allowance, assembly or visibility. Items also have a
+  manual plus/minus adjustment with a reason, included in totals, costs and exports.
+- **Optional OCR:** when Tesseract is installed, the Search dialog can OCR scanned pages and store the text for search.
+  The app remains fully usable without it.
+- **Symbol library and batch count:** save a boxed symbol from Auto count, then match it across selected pages and add
+  the reviewed matches to a count item.
+- **QOL:** duplicate a project, storage/trash usage with empty trash, CSV summary export, copy a quantity, Ctrl+K
+  command palette, light/dark theme, pinned projects, and a per-item "needs review" flag.
+
+### Changed
+
+- The version is 1.1.0; the ping endpoint reports whether OCR is available.
+- The frozen build includes the new modules; the installer and portable zip are built from the tag by the release
+  workflow.
+
 ## [1.0.0] - 2026-10-27
 
 The first packaged release: PlanCraft now installs and runs without a separate Python installation.

@@ -3,7 +3,8 @@ import { S, mutate, selectedItem, currentPage } from './store.js';
 import * as api from './api.js';
 import { h, uid } from './util.js';
 import { icon } from './icons.js';
-import { toast } from './dialogs.js';
+import { promptText, toast } from './dialogs.js';
+import { openSymbolLibrary } from './symbols.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 const PREFS = 'plancraft.autocount';
@@ -152,6 +153,18 @@ export function initAutoCount(viewer, host) {
       h('div', { class: 'hint' }, 'Click a circle to skip or keep it. Drag a box over the plan to skip all circles in it (hold Shift to keep them).'),
       h('div', { class: 'btn-row' },
         addBtn,
+        h('button', { class: 'btn small', onclick: async () => {
+          if (!res) return;
+          const page = S.project.pages.find(p => p.id === res.pageId);
+          const name = await promptText('Save symbol', 'Symbol name', 'Symbol');
+          if (!name || !page) return;
+          try {
+            await api.saveSymbol(S.project.id, { name, image: page.image,
+              rect: [res.rect.x, res.rect.y, res.rect.w, res.rect.h] });
+            toast('Symbol saved to this project.');
+          } catch (err) { toast(err.message, 'error'); }
+        } }, 'Save symbol'),
+        h('button', { class: 'btn small', onclick: () => openSymbolLibrary() }, 'Symbols...'),
         h('button', { class: 'btn small', onclick: () => { res = null; panel.hidden = true; viewer.render(); toast('Drag a box around one symbol.'); } }, 'New box'),
         h('button', { class: 'btn small', onclick: close }, 'Cancel')),
     ].filter(Boolean));

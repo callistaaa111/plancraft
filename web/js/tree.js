@@ -150,6 +150,7 @@ function itemRow(n, depth, x) {
     h('span', { class: 'ticon', html: icon(n.type), title: TYPE_NAME[n.type] }),
     h('span', { class: `name${onPage ? ' on-page' : ''}`, title: `${n.name}${n.props?.description ? ` - ${n.props.description}` : ''}${onPage ? '\n(has takeoff on this page)' : ''}` }, n.name),
     q.unscaled ? h('span', { class: 'warn-dot', title: `${q.unscaled} section(s) are on pages without a scale and are not counted`, html: icon('warn') }) : null,
+    n.props?.check ? h('span', { class: 'warn-dot', title: 'Flagged for review', html: icon('warn') }) : null,
     h('span', { class: 'qty' }, fmtQ(n, qtyFor(n))),
     h('span', { class: 'unit' }, q.unit),
     eyeBtn(n),

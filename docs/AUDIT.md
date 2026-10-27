@@ -201,7 +201,7 @@ desktop shortcut.
 ## Verification
 
 ~~~powershell
-python -m unittest discover -s tests -v      # 46 tests
+python -m unittest discover -s tests -v      # 51 tests
 ruff check .
 .\venv\Scripts\python.exe -m PyInstaller packaging/PlanCraft.spec --noconfirm --clean
 # smoke test the frozen app: & dist\PlanCraft\PlanCraft.exe --port 8798 --data dist\smoke-data
