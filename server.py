@@ -58,6 +58,7 @@ MAX_JSON = 300 * 1024 * 1024
 CODE_STAMP = (int(Path(sys.executable).stat().st_mtime) if FROZEN
               else int(max(f.stat().st_mtime for f in APP_DIR.glob("*.py"))))
 CHUNK = 1024 * 1024
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 
 
 def same_origin(port: int, origin: str) -> bool:
@@ -236,6 +237,16 @@ class Api(BaseHTTPRequestHandler):
         with open(f, "rb") as fh:
             shutil.copyfileobj(fh, self.wfile, CHUNK)
 
+    def send_download(self, data: bytes, ctype: str, name: str):
+        """A file made on the fly (Excel, CSV, PDF, archive) that the browser saves as name."""
+        self.send_response(200)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(data)))
+        self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(data)
+
     # ---- API ----------------------------------------------------------------------------------------
     def api(self, method, path, q):
         st = self.store
@@ -371,26 +382,12 @@ class Api(BaseHTTPRequestHandler):
                 project = st.load(pid)
                 data = quote_pdf.build(project)
                 name = re.sub(r'[\\/:*?"<>|]+', "_", "Quote - " + (project.get("name") or "project"))[:80] + ".pdf"
-                self.send_response(200)
-                self.send_header("Content-Type", "application/pdf")
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(data)
-                return None
+                return self.send_download(data, "application/pdf", name)
             if rest == ["archive"] and method == "GET":
                 data = archive.export_project(st, pid)
                 project = st.load(pid)
                 name = re.sub(r'[\\/:*?"<>|]+', "_", (project.get("name") or "project"))[:60] + ".plancraft.zip"
-                self.send_response(200)
-                self.send_header("Content-Type", "application/zip")
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(data)
-                return None
+                return self.send_download(data, "application/zip", name)
             if rest == ["search"] and method == "GET":
                 return self.send_json(search.search(st.load(pid), st.project_dir(pid), q.get("q") or ""))
             if rest == ["compare"] and method == "POST":
@@ -409,14 +406,7 @@ class Api(BaseHTTPRequestHandler):
                 data = export_xlsx.build_compare(report)
                 name = re.sub(r'[\\/:*?"<>|]+', "_", (report["old"]["name"] or "old") + " vs " +
                               (report["new"]["name"] or "new"))[:80] + " - revision.xlsx"
-                self.send_response(200)
-                self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(data)
-                return None
+                return self.send_download(data, XLSX, name)
             if rest == ["print"] and method == "POST":              # build a PDF of plan pages (background job)
                 import printpdf
                 opts = self.read_json()
@@ -493,27 +483,13 @@ class Api(BaseHTTPRequestHandler):
                 project = st.load(pid)
                 data = export_xlsx.build(project)
                 name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "takeoff") + " - takeoff.xlsx"
-                self.send_response(200)
-                self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(data)
-                return None
+                return self.send_download(data, XLSX, name)
             if rest == ["export.csv"] and method == "GET":
                 import export_csv
                 project = st.load(pid)
                 data = export_csv.build(project)
                 name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "takeoff") + " - takeoff.csv"
-                self.send_response(200)
-                self.send_header("Content-Type", "text/csv; charset=utf-8")
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
-                self.send_header("Cache-Control", "no-store")
-                self.end_headers()
-                self.wfile.write(data)
-                return None
+                return self.send_download(data, "text/csv; charset=utf-8", name)
         raise KeyError(path)
 
 

@@ -18,9 +18,11 @@ def _fitz():
 
 
 def _page_text(project_dir: Path, page: dict) -> str:
-    text = page.get("text") or ""
-    if text:
-        return text
+    """The PDF's own text layer (full length), else text stored on the page (OCR, or older projects)."""
+    return _pdf_text(project_dir, page) or page.get("text") or ""
+
+
+def _pdf_text(project_dir: Path, page: dict) -> str:
     src = page.get("src") or {}
     if not src.get("file"):
         return ""
