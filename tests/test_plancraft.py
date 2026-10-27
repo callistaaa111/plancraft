@@ -353,6 +353,27 @@ class PricingTests(unittest.TestCase):
         self.assertAlmostEqual(c["total"], c["subtotal"] * 1.1)
         self.assertNotIn("No materials", [ln["item"]["name"] for ln in c["lines"]])
 
+    def test_labour_and_quote_totals(self):
+        import pricing
+        project = {
+            "name": "Labour", "units": "m", "pages": [{"id": "p1", "scale": {"pxPerM": 10}}],
+            "tree": [_item("count", "POINT", [{"page": "p1", "points": [[1, 1]]}], assembly="a")],
+            "materials": [{"id": "l", "name": "Electrician", "unit": "hr", "price": 500, "kind": "labour",
+                           "whole": False, "category": "Labour"}],
+            "assemblies": [{"id": "a", "name": "Point", "parts": [
+                {"id": "p", "material": "l", "factor": 2, "basis": "each", "pack": 1}]}],
+            "settings": {"overhead": 10, "contingency": 5, "markup": 20, "tax": 12, "currency": "P"},
+        }
+        c = pricing.costing(project)
+        self.assertAlmostEqual(c["materials"], 0)
+        self.assertAlmostEqual(c["labour"], 1000)
+        self.assertAlmostEqual(c["subtotal"], 1000)
+        self.assertAlmostEqual(c["overheadAmount"], 100)
+        self.assertAlmostEqual(c["contingencyAmount"], 55)
+        self.assertAlmostEqual(c["markupAmount"], 231)
+        self.assertAlmostEqual(c["taxAmount"], 166.32)
+        self.assertAlmostEqual(c["total"], 1552.32)
+
     def test_export_has_bill_of_materials(self):
         import openpyxl
         wb = openpyxl.load_workbook(io.BytesIO(export_xlsx.build(self.project())))
@@ -363,6 +384,8 @@ class PricingTests(unittest.TestCase):
         self.assertEqual(sorted(names), sorted(["3.5 mm2 THHN wire", "20 mm PVC conduit (3 m)", "Junction box"]))
         self.assertEqual(ws["F5"].value, "=D5*E5")
         self.assertEqual(ws["E8"].value, "Subtotal")
+        self.assertIn("Quote", wb.sheetnames)
+        self.assertEqual(wb["Quote"]["A5"].value, "Materials")
 
     def test_price_list_import(self):
         import openpyxl
@@ -525,6 +548,133 @@ class ExportTests(unittest.TestCase):
             self.assertEqual((cut["name"], len(cut["sections"])), ("Slab (deduct)", 1))
 
 
+class CompareTests(unittest.TestCase):
+    @staticmethod
+    def page(pid, name, source, source_page=1):
+        return {"id": pid, "name": name, "image": f"{pid}.png", "width": 100, "height": 100, "dpi": 150,
+                "scale": {"pxPerM": 10}, "source": source, "sourcePage": source_page,
+                "src": {"file": source, "page": 0}}
+
+    def project(self, pid, page_id, items):
+        return {"id": pid, "name": pid, "units": "m", "modified": "2026-10-27T00:00:00",
+                "pages": [self.page(page_id, "E-301", "plan.pdf")], "tree": items, "marks": []}
+
+    def test_quantity_deltas_and_matching(self):
+        from compare import compare_projects
+        old = self.project("old", "p1", [
+            {"id": "f1", "kind": "folder", "name": "POWER", "children": [
+                _item("linear", "L1", [{"page": "p1", "points": [[0, 0], [50, 0]]}]),
+                _item("count", "OUTLET", [{"page": "p1", "points": [[1, 1]], "deduct": False},
+                                          {"page": "p1", "points": [[2, 2]]},
+                                          {"page": "p1", "points": [[3, 3]]}]),
+                _item("count", "OLD DEVICE", [{"page": "p1", "points": [[4, 4]]}]),
+            ]},
+        ])
+        new = self.project("new", "p2", [
+            {"id": "f1", "kind": "folder", "name": "POWER", "children": [
+                _item("linear", "L1", [{"page": "p2", "points": [[0, 0], [80, 0]]}]),
+                _item("count", "OUTLET", [{"page": "p2", "points": [[1, 1]], "deduct": False},
+                                          {"page": "p2", "points": [[2, 2]]},
+                                          {"page": "p2", "points": [[3, 3]]},
+                                          {"page": "p2", "points": [[4, 4]]}]),
+                _item("count", "PANEL", [{"page": "p2", "points": [[5, 5]]}]),
+            ]},
+        ])
+        rep = compare_projects(old, new)
+        rows = {r["name"]: r for r in rep["items"]}
+        self.assertEqual(rows["L1"]["status"], "changed")
+        self.assertAlmostEqual(rows["L1"]["oldQty"], 5)
+        self.assertAlmostEqual(rows["L1"]["newQty"], 8)
+        self.assertAlmostEqual(rows["L1"]["delta"], 3)
+        self.assertEqual(rows["OUTLET"]["status"], "changed")
+        self.assertEqual(rows["OLD DEVICE"]["status"], "removed")
+        self.assertEqual(rows["PANEL"]["status"], "added")
+        self.assertEqual(rep["summary"]["changed"], 2)
+        self.assertEqual(rep["summary"]["added"], 1)
+        self.assertEqual(rep["summary"]["removed"], 1)
+        self.assertEqual(len(rep["pages"]["pairs"]), 1)
+        self.assertEqual(rep["pages"]["pairs"][0]["how"], "source")
+
+    def test_compare_export_has_sheets(self):
+        import io
+
+        from openpyxl import load_workbook
+
+        from compare import compare_projects
+        old = self.project("old", "p1", [_item("count", "A", [{"page": "p1", "points": [[1, 1]]}])])
+        new = self.project("new", "p2", [_item("count", "A", [{"page": "p2", "points": [[1, 1]]},
+                                                               {"page": "p2", "points": [[2, 2]]}])])
+        data = export_xlsx.build_compare(compare_projects(old, new))
+        wb = load_workbook(io.BytesIO(data))
+        self.assertIn("Revision", wb.sheetnames)
+        self.assertIn("Totals", wb.sheetnames)
+        self.assertIn("Pages", wb.sheetnames)
+        self.assertEqual(wb["Revision"]["A6"].value, "CHANGED")
+        self.assertEqual(wb["Revision"]["G6"].value, 2)
+
+
+class SearchTests(unittest.TestCase):
+    def test_search_finds_pages_items_notes_and_text(self):
+        import search
+        page = CompareTests.page("p1", "E-301 POWER", "plan.pdf")
+        page["text"] = "PANEL LP1 SCHEDULE\nCIRCUIT 3 - LIGHTING"
+        project = {
+            "pages": [page],
+            "tree": [{"id": "f", "kind": "folder", "name": "POWER", "children": [
+                _item("linear", "LP1-3", [{"page": "p1", "points": [[0, 0], [10, 0]]}]),
+            ]}],
+            "marks": [{"kind": "note", "page": "p1", "text": "Check the LP1 panel with site"}],
+        }
+        res = search.search(project, Path("."), "LP1")
+        kinds = {r["type"] for r in res["results"]}
+        self.assertIn("item", kinds)
+        self.assertIn("text", kinds)
+        self.assertIn("note", kinds)
+        self.assertTrue(all(r["pageId"] == "p1" for r in res["results"]))
+        self.assertEqual(search.search(project, Path("."), "x")["results"], [])
+
+
+class ArchiveTests(unittest.TestCase):
+    def _project(self, tmp):
+        from PIL import Image
+        store = Store(Path(tmp) / "data")
+        p = store.create("Archive demo", "m")
+        Image.new("RGB", (120, 80), "white").save(store.pages_dir(p["id"]) / "pg1.png", "PNG")
+        p["pages"] = [{"id": "p1", "name": "E-1", "image": "pg1.png", "width": 120, "height": 80, "dpi": 150,
+                       "scale": {"pxPerM": 10}, "source": "plan.pdf", "sourcePage": 1}]
+        p["tree"] = [_item("count", "OUTLET", [{"page": "p1", "points": [[1, 1]]}])]
+        store.save(p["id"], p)
+        return store, p["id"]
+
+    def test_export_import_roundtrip(self):
+        import archive
+        with tempfile.TemporaryDirectory() as tmp:
+            store, pid = self._project(tmp)
+            data = archive.export_project(store, pid)
+            path = Path(tmp) / "job.plancraft.zip"
+            path.write_bytes(data)
+            other = Store(Path(tmp) / "restored")
+            p = archive.import_project(other, path)
+            self.assertNotEqual(p["id"], pid)
+            self.assertEqual(p["name"], "Archive demo")
+            self.assertEqual(len(p["pages"]), 1)
+            self.assertTrue((other.pages_dir(p["id"]) / "pg1.png").is_file())
+            self.assertEqual(p["tree"][0]["name"], "OUTLET")
+
+    def test_unsafe_archive_is_refused(self):
+        import zipfile
+
+        import archive
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data")
+            path = Path(tmp) / "bad.zip"
+            with zipfile.ZipFile(path, "w") as z:
+                z.writestr("../evil.txt", "x")
+                z.writestr("project.json", "{}")
+            with self.assertRaises(ValueError):
+                archive.import_project(store, path)
+
+
 class ApiTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -587,6 +737,32 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(r.status, 201)
             project_id = json.loads(r.read())["id"]
         self.call("DELETE", f"/api/projects/{project_id}")
+
+    def test_search_endpoint(self):
+        page = CompareTests.page("p1", "E-301", "plan.pdf")
+        page["text"] = "PANEL LP1 SCHEDULE"
+        st, p = self.call("POST", "/api/projects", {"name": "Search test"})
+        p.update(pages=[page], tree=[_item("count", "OUTLET", [{"page": "p1", "points": [[1, 1]]}])])
+        self.assertEqual(self.call("PUT", f"/api/projects/{p['id']}", p)[0], 200)
+        st, res = self.call("GET", f"/api/projects/{p['id']}/search?q=LP1")
+        self.assertEqual(st, 200)
+        self.assertTrue(any(r["type"] == "text" for r in res["results"]))
+        self.assertEqual(self.call("GET", f"/api/projects/{p['id']}/search?q=x")[1]["results"], [])
+
+    def test_compare_endpoint(self):
+        page = CompareTests.page("p1", "E-301", "plan.pdf")
+        st, old = self.call("POST", "/api/projects", {"name": "Rev A"})
+        old.update(pages=[page], tree=[_item("count", "OUTLET", [{"page": "p1", "points": [[1, 1]]}])])
+        self.assertEqual(self.call("PUT", f"/api/projects/{old['id']}", old)[0], 200)
+        st, new = self.call("POST", "/api/projects", {"name": "Rev B"})
+        new.update(pages=[page], tree=[_item("count", "OUTLET", [{"page": "p1", "points": [[1, 1]]},
+                                                               {"page": "p1", "points": [[2, 2]]}])])
+        self.assertEqual(self.call("PUT", f"/api/projects/{new['id']}", new)[0], 200)
+        st, rep = self.call("POST", f"/api/projects/{old['id']}/compare", {"other": new["id"]})
+        self.assertEqual(st, 200)
+        self.assertEqual(rep["summary"]["changed"], 1)
+        self.assertEqual(rep["items"][0]["delta"], 1)
+        self.assertEqual(self.call("POST", f"/api/projects/{old['id']}/compare", {"other": old["id"]})[0], 400)
 
     def test_project_roundtrip_and_delete(self):
         st, p = self.call("POST", "/api/projects", {"name": "Office Lighting", "units": "metric"})

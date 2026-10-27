@@ -1,10 +1,10 @@
 // "Materials & prices": the price list and the assemblies (material recipes attached to items or folders).
-import { S, ix, mutate } from './store.js';
+import { S, ix, mutate, qtyOf } from './store.js';
 import * as api from './api.js';
 import { h, uid, pickFiles, fmt } from './util.js';
 import { icon } from './icons.js';
 import { modal, toast, confirmBox } from './dialogs.js';
-import { BASES } from './pricing.js';
+import { BASES, costing, money } from './pricing.js';
 
 let tab = 'prices';
 let current = null;          // assembly being edited
@@ -39,8 +39,9 @@ export async function openMaterials(startTab = null, assemblyId = null) {
   const render = () => {
     tabs.replaceChildren(
       h('button', { class: tab === 'prices' ? 'on' : '', role: 'tab', onclick: () => { tab = 'prices'; render(); } }, `Price list (${P().materials.length})`),
-      h('button', { class: tab === 'assemblies' ? 'on' : '', role: 'tab', onclick: () => { tab = 'assemblies'; render(); } }, `Assemblies (${P().assemblies.length})`));
-    content.replaceChildren(tab === 'prices' ? pricesTab(render) : assembliesTab(render));
+      h('button', { class: tab === 'assemblies' ? 'on' : '', role: 'tab', onclick: () => { tab = 'assemblies'; render(); } }, `Assemblies (${P().assemblies.length})`),
+      h('button', { class: tab === 'quote' ? 'on' : '', role: 'tab', onclick: () => { tab = 'quote'; render(); } }, 'Quote'));
+    content.replaceChildren(tab === 'prices' ? pricesTab(render) : tab === 'quote' ? quoteTab(render) : assembliesTab(render));
   };
   render();
   await modal({
@@ -75,13 +76,15 @@ function pricesTab(render) {
       h('span', { class: 'spacer' }), filter),
     list.length ? h('div', { class: 'mat-scroll' }, h('table', { class: 'mat-table' },
       h('thead', null, h('tr', null, h('th', null, 'Category'), h('th', null, 'Material'), h('th', null, 'Unit'), h('th', null, `Price (${cur})`),
-        h('th', { title: 'Sold in whole units: the total is rounded up' }, 'Whole'), h('th', null, ''))),
+        h('th', { title: 'Sold in whole units: the total is rounded up' }, 'Whole'),
+        h('th', { title: 'Count this rate as labour, not material' }, 'Labour'), h('th', null, ''))),
       h('tbody', null, list.map(m => h('tr', null,
         h('td', null, cell(m, 'category', { placeholder: 'e.g. Wires' })),
         h('td', null, cell(m, 'name', { 'data-k': 'name' })),
         h('td', { class: 'narrow' }, cell(m, 'unit')),
         h('td', { class: 'narrow' }, cell(m, 'price', { type: 'number', step: 'any', min: 0 })),
         h('td', { class: 'center' }, (() => { const c = h('input', { type: 'checkbox', checked: !!m.whole, title: 'Round the total up to whole units' }); c.addEventListener('change', () => set(m, 'whole', c.checked)); return c; })()),
+        h('td', { class: 'center' }, (() => { const c = h('input', { type: 'checkbox', checked: m.kind === 'labour', title: 'This is a labour rate (hours, crew-days)' }); c.addEventListener('change', () => set(m, 'kind', c.checked ? 'labour' : 'material')); return c; })()),
         h('td', { class: 'center' }, h('button', {
           class: 'btn ghost small icon-only', title: used.get(m.id) ? `Used in ${used.get(m.id)} assembly part(s)` : 'Delete', html: icon('trash'),
           onclick: async () => {
@@ -94,6 +97,45 @@ function pricesTab(render) {
           },
         })))))))
       : h('div', { class: 'empty-note' }, q ? 'No materials match.' : 'No materials yet. Add them one by one, or import a supplier price list from Excel.'));
+}
+
+function quoteTab(render) {
+  const s = (P().settings ||= {});
+  const c = costing(P(), ix(), qtyOf);
+  const set = (key, value) => mutate(() => { P().settings[key] = value; });
+  const pct = (key, label, title) => h('tr', null,
+    h('td', null, label),
+    h('td', { class: 'num' }, (() => {
+      const i = h('input', { type: 'number', step: '0.1', min: 0, value: s[key] ?? 0, title });
+      i.addEventListener('change', () => { set(key, Number(i.value) || 0); render(); });
+      return i;
+    })()),
+    h('td', { class: 'hint' }, title));
+  const line = (label, value, strong = false) => h('div', { class: 'line' },
+    h('span', { style: strong ? { fontWeight: 700 } : null }, label),
+    h('span', { style: strong ? { fontWeight: 700 } : null }, money(value, P())));
+  const cur = s.currency ?? '₱';
+  return h('div', { class: 'mat-tab' },
+    h('div', { class: 'hint' }, `Costs use the currency ${cur}. Mark a material as Labour to split it out; no separate labour table is needed.`),
+    h('div', { class: 'mat-scroll' }, h('table', { class: 'mat-table' },
+      h('thead', null, h('tr', null, h('th', null, 'Setting'), h('th', { class: 'narrow' }, 'Percent'), h('th', null, 'What it does'))),
+      h('tbody', null,
+        pct('overhead', 'Overhead', 'Office and site overhead on the material + labour subtotal'),
+        pct('contingency', 'Contingency', 'Risk allowance on subtotal + overhead'),
+        pct('markup', 'Markup', 'Profit on subtotal + overhead + contingency'),
+        pct('tax', 'VAT / tax', 'Tax on subtotal + overhead + contingency + markup')))),
+    h('div', { class: 'qtybox' },
+      line('Materials', c.materials),
+      line('Labour', c.labour),
+      line('Subtotal', c.subtotal, true),
+      c.overheadAmount ? line(`Overhead ${c.overhead}%`, c.overheadAmount) : null,
+      c.contingencyAmount ? line(`Contingency ${c.contingency}%`, c.contingencyAmount) : null,
+      c.markupAmount ? line(`Markup ${c.markup}%`, c.markupAmount) : null,
+      c.taxAmount ? line(`Tax ${c.tax}%`, c.taxAmount) : null,
+      line('Total', c.total, true),
+      h('div', { class: 'line' }, h('span', null, 'Different priced lines'), h('span', null, String(c.bom.length)))),
+    c.bom.length ? h('div', { class: 'hint' }, 'The Excel export has this breakdown in its Bill of Materials and Quote sheets.')
+      : h('div', { class: 'hint' }, 'No assembled items yet: assign an assembly to an item or folder to see costs.'));
 }
 
 async function importPrices(render) {

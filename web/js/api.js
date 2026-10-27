@@ -25,6 +25,20 @@ export const deleteProject = id => req('DELETE', `/api/projects/${encodeURICompo
 export const listBackups = id => req('GET', `/api/projects/${encodeURIComponent(id)}/backups`);
 export const restoreBackup = (id, name) => req('POST', `/api/projects/${encodeURIComponent(id)}/restore`, { name });
 export const getTask = id => req('GET', `/api/tasks/${encodeURIComponent(id)}`);
+export const compareProjects = (id, other) => req('POST', `/api/projects/${encodeURIComponent(id)}/compare`, { other });
+export const searchProject = (id, q) => req('GET', `/api/projects/${encodeURIComponent(id)}/search?q=${encodeURIComponent(q)}`);
+
+/** POST the comparison and return the Excel workbook as a Blob. */
+export async function compareExcel(id, other) {
+  const res = await fetch(`/api/projects/${encodeURIComponent(id)}/compare.xlsx`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ other }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Could not export the comparison (${res.status})`);
+  }
+  return res.blob();
+}
 
 export const rotatePage = (id, image, turns) => req('POST', `/api/projects/${encodeURIComponent(id)}/pages/rotate`, { image, turns });
 export const cropPage = (id, image, rect) => req('POST', `/api/projects/${encodeURIComponent(id)}/pages/crop`, { image, rect });
@@ -35,6 +49,7 @@ export const tintUrl = (id, image, color) => `/api/projects/${encodeURIComponent
 
 export const pageUrl = (projectId, page) => `/api/projects/${encodeURIComponent(projectId)}/pages/${encodeURIComponent(page.image)}`;
 export const exportUrl = projectId => `/api/projects/${encodeURIComponent(projectId)}/export.xlsx`;
+export const archiveUrl = projectId => `/api/projects/${encodeURIComponent(projectId)}/archive`;
 
 /** Build a PlanSwift job of the project on the server, then download it. onProgress(fraction, message). */
 export async function exportSwiftJob(projectId, onProgress) {

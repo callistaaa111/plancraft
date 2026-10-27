@@ -401,3 +401,32 @@ kbd { font: 11.5px var(--font); padding: 1px 5px; border: 1px solid var(--border
 .pick-row .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 .pick-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-actions { display: flex; gap: 6px; margin-top: 8px; }
+
+/* Revision comparison */
+.rev-compare { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.rev-actions { display: flex; gap: 8px; }
+.rev-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.rev-summary { display: flex; gap: 6px; flex-wrap: wrap; }
+.rev-tools { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rev-tools .hint { margin: 0; }
+.rev-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.rev-table th { position: sticky; top: 0; z-index: 1; background: var(--panel-2); color: var(--muted);
+  text-align: left; font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+.rev-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.rev-table td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rev-table td.muted { color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rev-table tr.rev-added td { background: rgba(39, 174, 96, .08); }
+.rev-table tr.rev-removed td { background: rgba(231, 76, 60, .08); }
+.rev-table tr.rev-changed td { background: rgba(241, 196, 15, .10); }
+.rev-pages { border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; }
+.rev-pages summary { cursor: pointer; color: var(--muted); }
+.rev-pages ul { margin: 6px 0 0; padding-left: 20px; max-height: 120px; overflow: auto; }
+.rev-result { min-width: 0; max-height: 56vh; overflow: auto; }
+
+/* Project search */
+.search-results { display: flex; flex-direction: column; gap: 4px; max-height: 52vh; overflow: auto; }
+.search-hit { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; padding: 8px 10px;
+  border: 1px solid transparent; border-radius: 6px; background: none; color: var(--text); cursor: pointer; }
+.search-hit:hover { background: var(--hover); border-color: var(--border); }
+.search-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.search-text .hint { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
