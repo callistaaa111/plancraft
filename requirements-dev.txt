@@ -2,5 +2,5 @@
 
 # Development and release tooling (not needed to run PlanCraft)
 coverage[toml]>=7.10
-pyinstaller>=6.17
+pyinstaller>=6.22.3
 ruff>=0.14
