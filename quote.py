@@ -117,6 +117,7 @@ def build(project: dict, options: dict | None = None) -> bytes:
         rows.append((f"Overhead ({cost['overhead']:g}%)", cost["overheadAmount"]))
     if cost.get("contingencyAmount"):
         rows.append((f"Contingency ({cost['contingency']:g}%)", cost["contingencyAmount"]))
+    rows += [(e["label"], e["amount"]) for e in cost["extras"] if e["amount"]]
     if cost.get("markupAmount"):
         rows.append((f"Markup ({cost['markup']:g}%)", cost["markupAmount"]))
     if cost.get("taxAmount"):

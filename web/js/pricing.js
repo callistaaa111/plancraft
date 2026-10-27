@@ -46,6 +46,18 @@ export function assemblyFor(nodeId, x, assemblies) {
   return null;
 }
 
+/** The user's own cost lines (settings.extras), added after contingency and before markup; same as extra_lines in pricing.py.
+ *  type 'pct' is a percent of the material + labour subtotal, 'fixed' an amount. */
+export function extraLines(settings, subtotal, fixedToo = true) {
+  return (settings.extras || []).filter(e => e && typeof e === 'object').map(e => {
+    const name = String(e.name || '').trim() || 'Other cost';
+    const value = num(e.value);
+    const fixed = e.type === 'fixed';
+    return { name, type: fixed ? 'fixed' : 'pct', value, label: fixed ? name : `${name} ${value}%`,
+      amount: fixed ? (fixedToo ? value : 0) : subtotal * value / 100 };
+  });
+}
+
 /** Bill of materials for some items (all by default). */
 export function costing(project, x, qtyOf, items = x.items) {
   const materials = new Map((project.materials || []).map(m => [m.id, m]));
@@ -71,13 +83,15 @@ export function costing(project, x, qtyOf, items = x.items) {
   const taxPct = num(settings.tax);
   const overhead = subtotal * overheadPct / 100;
   const contingency = (subtotal + overhead) * contingencyPct / 100;
-  const beforeMarkup = subtotal + overhead + contingency;
+  // a fixed amount (e.g. mobilization) belongs to the whole job, not to each folder's share of it
+  const extras = extraLines(settings, subtotal, items === x.items);
+  const beforeMarkup = subtotal + overhead + contingency + extras.reduce((s, e) => s + e.amount, 0);
   const markupAmount = beforeMarkup * markupPct / 100;
   const beforeTax = beforeMarkup + markupAmount;
   const tax = beforeTax * taxPct / 100;
   return {
     bom, materials: materialsSubtotal, labour: labourSubtotal, subtotal,
-    overhead: overheadPct, overheadAmount: overhead, contingency: contingencyPct, contingencyAmount: contingency,
+    overhead: overheadPct, overheadAmount: overhead, contingency: contingencyPct, contingencyAmount: contingency, extras,
     markup: markupPct, markupAmount, tax: taxPct, taxAmount: tax, total: beforeTax + tax,
   };
 }

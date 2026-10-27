@@ -168,6 +168,7 @@ function costBox(items) {
     line('Subtotal', c.subtotal, true),
     c.overheadAmount ? line(`Overhead ${c.overhead}%`, c.overheadAmount) : null,
     c.contingencyAmount ? line(`Contingency ${c.contingency}%`, c.contingencyAmount) : null,
+    ...c.extras.filter(e => e.amount).map(e => line(e.label, e.amount)),
     c.markupAmount ? line(`Markup ${c.markup}%`, c.markupAmount) : null,
     c.taxAmount ? line(`Tax ${c.tax}%`, c.taxAmount) : null,
     line('Total', c.total, true),
