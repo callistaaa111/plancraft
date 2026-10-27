@@ -17,7 +17,7 @@ export const S = {
   ortho: false,
   snap: true,
   labels: false,
-  showProps: (() => { try { return localStorage.getItem('plancraft.props') !== '0'; } catch { return true; } })(), // right-hand panel
+  showProps: (() => { try { return localStorage.getItem('plancraft.props') === '1'; } catch { return false; } })(), // right-hand panel, closed until P
   focus: (() => { try { return localStorage.getItem('plancraft.focus') !== '0'; } catch { return true; } })(), // fade other takeoff while an item is selected
   deduct: false,
   qtyScope: 'all',
