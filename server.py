@@ -38,8 +38,12 @@ sys.path.insert(0, str(RESOURCE_DIR))
 import archive  # noqa: E402
 import compare  # noqa: E402
 import importers  # noqa: E402
+import ocr  # noqa: E402
+import quote as quote_pdf  # noqa: E402
 import search  # noqa: E402
+import symbols  # noqa: E402
 import tasks  # noqa: E402
+import templates  # noqa: E402
 import vision  # noqa: E402
 from store import Conflict, Store  # noqa: E402
 from version import __version__  # noqa: E402
@@ -216,7 +220,7 @@ class Api(BaseHTTPRequestHandler):
             if q.get("beat"):
                 Api.last_beat = time.time()          # an open PlanCraft window says hello
             return self.send_json({"app": "PlanCraft", "code": CODE_STAMP, "version": __version__,
-                                   "frozen": FROZEN})
+                                   "frozen": FROZEN, "ocr": ocr.available()})
 
         if parts == ["quit"] and method == "POST":
             # only PlanCraft's own launcher sends this header (a web page cannot without the server allowing it)
@@ -227,13 +231,34 @@ class Api(BaseHTTPRequestHandler):
             threading.Timer(0.2, Api.httpd.shutdown).start()
             return self.send_json({"ok": True})
 
+        if parts == ["storage"] and method == "GET":
+            return self.send_json(st.storage())
+        if parts == ["trash"] and method == "DELETE":
+            return self.send_json(st.empty_trash())
+
         if parts == ["projects"]:
             if method == "GET":
                 return self.send_json(st.list())
             if method == "POST":
                 body = self.read_json()
-                name = (body.get("name") or "").strip() or "Untitled"
-                return self.send_json(st.create(name, body.get("units") or "m"), 201)
+                raw_name = (body.get("name") or "").strip()
+                if body.get("template"):
+                    return self.send_json(templates.Templates(st).create_project(
+                        st, body["template"], raw_name or None, body.get("units")), 201)
+                return self.send_json(st.create(raw_name or "Untitled", body.get("units") or "m"), 201)
+
+        if parts == ["templates"]:
+            tpl = templates.Templates(st)
+            if method == "GET":
+                return self.send_json(tpl.list())
+            if method == "POST":
+                body = self.read_json()
+                project_id = body.get("project")
+                if not project_id:
+                    raise ValueError("Pick a project to save as a template.")
+                return self.send_json(tpl.save(st.load(project_id), body.get("name")), 201)
+        if parts[:1] == ["templates"] and len(parts) == 2 and method == "DELETE":
+            return self.send_json(templates.Templates(st).delete(parts[1]))
 
         if parts[:2] == ["import", "swiftjob"] and method == "POST":
             tmp = self.read_to_temp(".SwiftJob")
@@ -286,6 +311,38 @@ class Api(BaseHTTPRequestHandler):
                 return self.send_json(st.backups(pid))
             if rest == ["restore"] and method == "POST":
                 return self.send_json(st.restore(pid, self.read_json().get("name")))
+            if rest == ["symbols"]:
+                if method == "GET":
+                    return self.send_json(symbols.list_symbols(st, pid))
+                if method == "POST":
+                    body = self.read_json()
+                    return self.send_json(symbols.save(st, pid, body.get("name"), body.get("image"),
+                                                       body.get("rect")), 201)
+            if rest[:1] == ["symbols"] and len(rest) == 3 and rest[2] == "count" and method == "POST":
+                body = self.read_json()
+                return self.send_json(symbols.count(st, pid, rest[1], body.get("pages") or []))
+            if rest[:1] == ["symbols"] and len(rest) == 2 and method == "DELETE":
+                return self.send_json(symbols.delete(st, pid, rest[1]))
+            if rest == ["ocr"] and method == "POST":
+                if not ocr.available():
+                    raise ValueError("OCR needs Tesseract. Install it and make sure tesseract.exe is on PATH.")
+                project = st.load(pid)
+                return self.send_json({"task": tasks.start("ocr", ocr.run, project, st, pid).id}, 202)
+            if rest == ["duplicate"] and method == "POST":
+                body = self.read_json()
+                return self.send_json(st.duplicate(pid, body.get("name")), 201)
+            if rest == ["quote.pdf"] and method == "GET":
+                project = st.load(pid)
+                data = quote_pdf.build(project)
+                name = re.sub(r'[\\/:*?"<>|]+', "_", "Quote - " + (project.get("name") or "project"))[:80] + ".pdf"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/pdf")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(data)
+                return None
             if rest == ["archive"] and method == "GET":
                 data = archive.export_project(st, pid)
                 project = st.load(pid)
@@ -400,6 +457,19 @@ class Api(BaseHTTPRequestHandler):
                 name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "takeoff") + " - takeoff.xlsx"
                 self.send_response(200)
                 self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(data)
+                return None
+            if rest == ["export.csv"] and method == "GET":
+                import export_csv
+                project = st.load(pid)
+                data = export_csv.build(project)
+                name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "takeoff") + " - takeoff.csv"
+                self.send_response(200)
+                self.send_header("Content-Type", "text/csv; charset=utf-8")
                 self.send_header("Content-Length", str(len(data)))
                 self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
                 self.send_header("Cache-Control", "no-store")

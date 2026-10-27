@@ -199,6 +199,46 @@ class Store:
         self.save(pid, project)
         return self.load(pid)
 
+    def duplicate(self, pid: str, name: str | None = None) -> dict:
+        """Copy a project (pages, sources and project.json, no backups/exports) into a new project."""
+        src = self.load(pid)
+        new_name = (name or f"{src.get('name') or 'Project'} (copy)").strip() or "Project (copy)"
+        new_pid = self.allocate(new_name)
+        dest = self.project_dir(new_pid, must_exist=False)
+        shutil.copytree(self.project_dir(pid), dest, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("backups", "cache", "exports"))
+        src["id"] = new_pid
+        src["name"] = new_name
+        src["created"] = now_iso()
+        src["modified"] = now_iso()
+        src["duplicatedFrom"] = pid
+        _write_json_atomic(dest / "project.json", src)
+        return self.load(new_pid)
+
+    def storage(self) -> dict:
+        """Sizes for the Storage screen. Walks the data folder; a 1 GB project set takes a moment."""
+        def size(path: Path) -> int:
+            if not path.exists():
+                return 0
+            return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+        projects = self.projects if self.projects.is_dir() else None
+        return {"path": str(self.root), "projects": size(projects) if projects else 0, "trash": size(self.trash),
+                "templates": size(self.root / "templates"), "total": size(self.root),
+                "projectCount": len(list(self.projects.iterdir())) if self.projects.is_dir() else 0,
+                "trashCount": len(list(self.trash.iterdir())) if self.trash.is_dir() else 0}
+
+    def empty_trash(self) -> dict:
+        freed = 0
+        if self.trash.is_dir():
+            for item in list(self.trash.iterdir()):
+                freed += sum(f.stat().st_size for f in item.rglob("*") if f.is_file()) if item.is_dir() else item.stat().st_size
+                if item.is_dir():
+                    shutil.rmtree(item, ignore_errors=True)
+                else:
+                    item.unlink(missing_ok=True)
+        return {"ok": True, "freed": freed}
+
     def delete(self, pid: str) -> None:
         d = self.project_dir(pid)
         self.trash.mkdir(parents=True, exist_ok=True)

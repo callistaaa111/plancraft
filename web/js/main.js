@@ -22,6 +22,9 @@ import { getDraft, dropDraft, sameContent } from './recovery.js';
 import { initAutoCount } from './autocount.js';
 import { initCompare } from './compare.js';
 import { openProjectSearch } from './search.js';
+import { openPageManager } from './pagemgr.js';
+import { openBulkEdit } from './bulk.js';
+import { openPalette } from './palette.js';
 
 const viewer = new Viewer($('#canvasHost'), $('#canvas'));
 initMarkup(viewer);
@@ -61,7 +64,10 @@ $('#btnExport').innerHTML = `${icon('download')}<span class="lbl">Export</span>$
 setBtn('#btnPrint', 'printer', 'Print / PDF');
 setBtn('#btnHelp', 'help', '');
 setBtn('#btnSearch', 'search', '');
+setBtn('#btnTheme', 'theme', '');
 setBtn('#btnAddPages', 'plus', '');
+setBtn('#btnManagePages', 'panel', '');
+setBtn('#btnBulk', 'tag', '');
 setBtn('#btnPrevPage', 'left', '');
 setBtn('#btnNextPage', 'right', '');
 setBtn('#btnZoomIn', 'zoomIn', '');
@@ -69,6 +75,7 @@ setBtn('#btnZoomOut', 'zoomOut', '');
 setBtn('#btnFit', 'fit', '');
 setBtn('#btnImportJob', 'job', 'Open .SwiftJob');
 setBtn('#btnImportArchive', 'upload', 'Import archive');
+setBtn('#btnNewFromTemplate', 'copy', 'New from template');
 setBtn('#btnNewFromPdf', 'pdf', 'New from PDF');
 setBtn('#btnNewProject', 'plus', 'New project');
 for (const b of $$('[data-new]')) {
@@ -82,10 +89,13 @@ $('#btnRedo').onclick = () => redo();
 $('#btnAddPlans').onclick = () => addPlans();
 $('#btnMaterials').onclick = () => openMaterials();
 $('#btnAddPages').onclick = () => addPlans();
+$('#btnManagePages').onclick = () => openPageManager();
+$('#btnBulk').onclick = () => openBulkEdit();
 $('#btnExport').onclick = () => {
   const r = $('#btnExport').getBoundingClientRect();
   openMenu(r.left, r.bottom + 4, [
     { label: 'Excel summary (.xlsx)', icon: 'excel', action: () => exportExcel() },
+    { label: 'CSV summary (.csv)', icon: 'excel', action: () => download(api.csvUrl(S.project.id)) },
     { label: 'PlanSwift job (.SwiftJob)', icon: 'job', action: () => exportSwiftJob(S.project?.id) },
     { label: 'PDF of the plans...', icon: 'printer', kbd: 'Ctrl+P', action: () => printPlans() },
   ]);
@@ -104,6 +114,19 @@ function viewArea() {
 const printPlans = () => openPrint({ viewArea });
 $('#btnHelp').onclick = () => showHelp();
 $('#btnSearch').onclick = () => openProjectSearch();
+const applyTheme = t => {
+  document.documentElement.dataset.theme = t;
+  try { localStorage.setItem('plancraft.theme', t); } catch { /* storage unavailable */ }
+};
+try {
+  const saved = localStorage.getItem('plancraft.theme');
+  if (saved === 'light' || saved === 'dark') applyTheme(saved);
+} catch { /* storage unavailable */ }
+$('#btnTheme').onclick = () => {
+  const current = document.documentElement.dataset.theme
+    || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+};
 $('#btnPrevPage').onclick = () => stepPage(-1);
 $('#btnNextPage').onclick = () => stepPage(1);
 $('#btnZoomIn').onclick = () => viewer.zoomAt(1.25);
@@ -610,6 +633,29 @@ function showHelp() {
   });
 }
 
+function projectCommands() {
+  return [
+    { label: 'New linear item', hint: 'Takeoff', action: () => addNode('linear') },
+    { label: 'New area item', hint: 'Takeoff', action: () => addNode('area') },
+    { label: 'New count item', hint: 'Takeoff', action: () => addNode('count') },
+    { label: 'Set scale on this page', hint: 'Scale', action: () => scaleDialog(S.pageId, { onCalibrate: startCalibrate }) },
+    { label: 'Manage pages and scales', hint: 'Pages', action: () => openPageManager() },
+    { label: 'Bulk edit items', hint: 'Takeoff', action: () => openBulkEdit() },
+    { label: 'Materials, assemblies and quote', hint: 'Estimating', action: () => openMaterials() },
+    { label: 'Export Excel summary', hint: 'Export', action: () => exportExcel() },
+    { label: 'Print / PDF', hint: 'Ctrl+P', action: () => printPlans() },
+    { label: 'Search project', hint: 'Ctrl+Shift+F', action: () => openProjectSearch() },
+    { label: 'Fit page', hint: 'View', action: () => viewer.fit() },
+    { label: 'Next page', hint: 'Page Down', action: () => stepPage(1) },
+    { label: 'Previous page', hint: 'Page Up', action: () => stepPage(-1) },
+    { label: 'Toggle ortho', hint: 'O', action: () => toggle('ortho') },
+    { label: 'Toggle snap', hint: 'S', action: () => toggle('snap') },
+    { label: 'Toggle focus', hint: 'G', action: () => toggle('focus') },
+    { label: 'Save now', hint: 'Ctrl+S', action: () => flushSave().then(() => toast('Saved.')).catch(err => toast(err.message, 'error')) },
+    { label: 'Keyboard shortcuts', hint: '?', action: () => showHelp() },
+  ];
+}
+
 // ---- keyboard ----------------------------------------------------------------------------------------
 document.addEventListener('keydown', e => {
   if (!S.project || $('#workspace').hidden || document.querySelector('.modal-back')) return;
@@ -623,6 +669,7 @@ document.addEventListener('keydown', e => {
     else if (lk === 's') { e.preventDefault(); flushSave().then(() => toast('Saved.')).catch(err => toast(err.message, 'error')); }
     else if (lk === 'p') { e.preventDefault(); printPlans(); }
     else if (lk === 'f' && e.shiftKey) { e.preventDefault(); openProjectSearch(); }
+    else if (lk === 'k') { e.preventDefault(); openPalette(projectCommands()); }
     else if (lk === 'c' && !window.getSelection()?.toString() && S.pageId) { e.preventDefault(); copyPage(S.pageId); }
     else if (lk === 'v') { e.preventDefault(); pastePage(); }
     return;

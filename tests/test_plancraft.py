@@ -103,6 +103,13 @@ class MeasureTests(unittest.TestCase):
         self.assertAlmostEqual(extra["Perimeter"], 40)
         self.assertAlmostEqual(extra["Volume"], 37.5)
 
+    def test_manual_adjustment_is_added_to_the_total(self):
+        it = _item("linear", "L", [{"page": "p1", "points": [[0, 0], [100, 0]]}], adjust=2.5)
+        q = measure.item_quantities(it, self.pages)
+        self.assertAlmostEqual(q["qty"], 12.5)
+        self.assertAlmostEqual(q["adjust"], 2.5)
+        self.assertIn(("Manual adjustment", 2.5, "m"), q["extra"])
+
     def test_count_needs_no_scale(self):
         it = _item("count", "C", [{"page": "p2", "points": [[1, 1], [2, 2], [3, 3]]}])
         self.assertEqual(measure.item_quantities(it, self.pages)["qty"], 3)
@@ -673,6 +680,120 @@ class ArchiveTests(unittest.TestCase):
                 z.writestr("project.json", "{}")
             with self.assertRaises(ValueError):
                 archive.import_project(store, path)
+
+
+class SymbolTests(unittest.TestCase):
+    def test_save_and_count_a_symbol(self):
+        from PIL import Image, ImageDraw
+
+        import symbols
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data")
+            p = store.create("Symbols", "m")
+            im = Image.new("RGB", (400, 300), "white")
+            d = ImageDraw.Draw(im)
+            for x, y in ((50, 50), (200, 50), (50, 200)):
+                d.rectangle((x, y, x + 20, y + 20), fill="black")
+            im.save(store.pages_dir(p["id"]) / "pg.png", "PNG")
+            p["pages"] = [{"id": "p1", "name": "E-1", "image": "pg.png", "width": 400, "height": 300, "dpi": 150,
+                           "scale": {"pxPerM": 10}}]
+            store.save(p["id"], p)
+            sym = symbols.save(store, p["id"], "Square", "pg.png", [50, 50, 20, 20])
+            self.assertEqual(sym["name"], "Square")
+            self.assertEqual(len(symbols.list_symbols(store, p["id"])), 1)
+            out = symbols.count(store, p["id"], sym["id"], ["p1"])
+            self.assertGreaterEqual(out["total"], 3)
+            symbols.delete(store, p["id"], sym["id"])
+            self.assertEqual(symbols.list_symbols(store, p["id"]), [])
+
+
+class QolTests(unittest.TestCase):
+    def test_duplicate_storage_csv_and_empty_trash(self):
+        from PIL import Image
+
+        import export_csv
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data")
+            p = store.create("Original job", "m")
+            Image.new("RGB", (80, 60), "white").save(store.pages_dir(p["id"]) / "pg.png", "PNG")
+            p["pages"] = [{"id": "p1", "name": "E-1", "image": "pg.png", "width": 80, "height": 60, "dpi": 150,
+                           "scale": {"pxPerM": 10}}]
+            p["tree"] = [_item("count", "OUTLET", [{"page": "p1", "points": [[1, 1]]}])]
+            store.save(p["id"], p)
+
+            copy = store.duplicate(p["id"], "Copy job")
+            self.assertNotEqual(copy["id"], p["id"])
+            self.assertEqual(copy["name"], "Copy job")
+            self.assertEqual(copy["pages"][0]["image"], "pg.png")
+            self.assertTrue((store.pages_dir(copy["id"]) / "pg.png").is_file())
+
+            data = export_csv.build(copy)
+            self.assertIn(b"Folder,Item,Type", data)
+            self.assertIn(b"OUTLET", data)
+
+            storage = store.storage()
+            self.assertGreaterEqual(storage["projectCount"], 2)
+            self.assertGreater(storage["total"], 0)
+
+            store.delete(p["id"])
+            self.assertGreaterEqual(store.storage()["trashCount"], 1)
+            store.empty_trash()
+            self.assertEqual(store.storage()["trashCount"], 0)
+
+
+class TemplateTests(unittest.TestCase):
+    def test_template_roundtrip_drops_takeoff_and_keeps_prices(self):
+        import templates
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data")
+            p = store.create("Template source", "m")
+            p["settings"] = {"markup": 12, "currency": "P", "overhead": 5}
+            p["materials"] = [{"id": "w", "name": "Wire", "unit": "m", "price": 25}]
+            p["assemblies"] = [{"id": "a", "name": "Circuit", "parts": [
+                {"id": "p", "material": "w", "factor": 2, "basis": "qty", "pack": 1}]}]
+            p["pages"] = [{"id": "pg", "name": "E-1", "scale": {"pxPerM": 10}}]
+            p["tree"] = [{"id": "f", "kind": "folder", "name": "POWER", "children": [
+                _item("linear", "L1", [{"page": "pg", "points": [[0, 0], [10, 0]]}], assembly="a")]}]
+            store.save(p["id"], p)
+
+            tpl = templates.Templates(store)
+            saved = tpl.save(store.load(p["id"]), "Standard electrical")
+            self.assertEqual(len(tpl.list()), 1)
+            new = tpl.create_project(store, saved["id"], "New job")
+            self.assertNotEqual(new["id"], p["id"])
+            self.assertEqual(new["name"], "New job")
+            self.assertEqual(new["materials"][0]["name"], "Wire")
+            self.assertEqual(new["assemblies"][0]["id"], "a")
+            self.assertEqual(new["tree"][0]["name"], "POWER")
+            self.assertEqual(new["tree"][0]["children"][0]["sections"], [])
+            self.assertEqual(new["pages"], [])
+            self.assertEqual(new["settings"]["markup"], 12)
+            tpl.delete(saved["id"])
+            self.assertEqual(tpl.list(), [])
+
+
+class QuoteTests(unittest.TestCase):
+    def test_proposal_pdf_contains_company_client_and_total(self):
+        import pymupdf
+
+        import quote
+        project = {
+            "name": "Proposal demo", "units": "m", "pages": [{"id": "p1", "scale": {"pxPerM": 10}}],
+            "tree": [_item("count", "POINT", [{"page": "p1", "points": [[1, 1]]}], assembly="a")],
+            "materials": [{"id": "l", "name": "Electrician", "unit": "hr", "price": 500, "kind": "labour"}],
+            "assemblies": [{"id": "a", "name": "Point", "parts": [
+                {"id": "p", "material": "l", "factor": 1, "basis": "each", "pack": 1}]}],
+            "settings": {"companyName": "ACME Electrical", "companyContact": "0917 000 0000",
+                         "clientName": "Sample Client", "projectAddress": "Makati", "terms": "Valid for 30 days.",
+                         "currency": "P", "markup": 10, "tax": 12},
+        }
+        data = quote.build(project)
+        self.assertTrue(data.startswith(b"%PDF"))
+        doc = pymupdf.open(stream=data, filetype="pdf")
+        text = "\n".join(page.get_text() for page in doc)
+        self.assertIn("ACME Electrical", text)
+        self.assertIn("Sample Client", text)
+        self.assertIn("TOTAL", text)
 
 
 class ApiTests(unittest.TestCase):

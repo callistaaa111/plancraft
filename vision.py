@@ -92,6 +92,32 @@ def find_symbols(path: Path, rect, rotations: bool = False, min_score: float = 0
     return {"matches": kept, "size": [x1 - x0, y1 - y0], "method": method}
 
 
+def find_template(path: Path, template_path: Path, min_score: float = 0.4, limit: int = 5000) -> dict:
+    """Match a saved symbol template over a whole page (shape method)."""
+    cv2, np = _cv()
+    img = read_gray(path)
+    tpl = read_gray(template_path)
+    H, W = img.shape
+    th, tw = tpl.shape
+    if th > H or tw > W:
+        raise ValueError("The saved symbol is larger than this page.")
+    candidates = _find_shapes(img, tpl, (0, 0, W, H), False, min_score)
+    min_d = max(4.0, min(th, tw) * 0.6)
+    grid = {}
+    kept = []
+    for sc, cx, cy in candidates:
+        gx, gy = int(cx // min_d), int(cy // min_d)
+        clash = any((kx - cx) ** 2 + (ky - cy) ** 2 < min_d * min_d
+                    for dx in (-1, 0, 1) for dy in (-1, 0, 1) for kx, ky in grid.get((gx + dx, gy + dy), ()))
+        if clash:
+            continue
+        grid.setdefault((gx, gy), []).append((cx, cy))
+        kept.append([round(cx, 2), round(cy, 2), round(sc, 4)])
+        if len(kept) >= limit:
+            break
+    return {"matches": kept, "size": [tw, th], "method": "shape"}
+
+
 def _find_shapes(img, tpl, area, rotations, min_score):
     """Normalised cross-correlation of the boxed picture over the search area."""
     cv2, np = _cv()

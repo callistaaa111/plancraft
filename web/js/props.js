@@ -11,6 +11,7 @@ import { deletePage, renamePage } from './pages.js';
 import { copyPage, pastePage, hasClip, rotatePage } from './pageops.js';
 import { openMaterials } from './materials.js';
 import { assemblyFor, itemParts, costing, money } from './pricing.js';
+import { toast } from './dialogs.js';
 
 let el = null;
 let A = {};               // actions from main: exportExcel, calibrate, reveal(sec)
@@ -254,7 +255,15 @@ function itemPanel(it) {
       'Shown as TYPE OF WIRE in the Excel circuit sheet.'),
     field('Allowance %', numInput(p.allowance ?? 0, v => setProp(it, 'allowance', v ?? 0), { min: 0, step: 1 }),
       'Added on top and rounded up, like =ROUNDUP(LM*1.2,0).'),
+    field('Manual adjustment', numInput(p.adjust ?? 0, v => setProp(it, 'adjust', v ?? 0), { step: 0.01 }),
+      'A plus or minus on the total, for site conditions or an agreed omission.'),
+    field('Adjustment reason', input(p.adjustNote, v => setProp(it, 'adjustNote', v), { placeholder: 'e.g. omit riser per RFI 12' })),
     assemblyField(it),
+    field('Review', (() => {
+      const cb = h('input', { type: 'checkbox', checked: !!p.check });
+      cb.addEventListener('change', () => setProp(it, 'check', cb.checked));
+      return h('label', { class: 'inline' }, cb, 'Flag this item for review');
+    })()),
     field('Notes', (() => {
       const t = h('textarea', { rows: 3 }, p.notes || '');
       t.addEventListener('change', () => setProp(it, 'notes', t.value));
@@ -273,12 +282,17 @@ function itemQty(it) {
   const lines = [];
   if (allow) lines.push(h('div', { class: 'line' }, h('span', null, `With ${allow}% allowance`), h('span', null, `${fmt(M.withAllowance(q.qty, allow), 0)} ${q.unit}`)));
   for (const e of q.extra) lines.push(h('div', { class: 'line' }, h('span', null, e.label), h('span', null, `${fmt(e.value)} ${e.unit}`)));
+  if (p.adjustNote) lines.push(h('div', { class: 'line' }, h('span', null, 'Adjustment reason'), h('span', null, p.adjustNote)));
   const secs = it.sections.length;
   lines.push(h('div', { class: 'line' }, h('span', null, it.type === 'count' ? 'Markers' : 'Sections'),
     h('span', null, it.type === 'count' ? `${it.sections.reduce((a, s) => a + s.points.length, 0)} in ${secs} group(s)` : String(secs))));
   return h('div', { 'data-dyn': '' },
     h('div', { class: 'qtybox' },
-      h('div', { class: 'big' }, fmt(q.qty, dp), h('small', null, q.unit)),
+      h('div', { class: 'big' }, fmt(q.qty, dp), h('small', null, q.unit),
+        h('button', { class: 'btn ghost small', type: 'button', title: 'Copy the quantity', onclick: async () => {
+          try { await navigator.clipboard.writeText(fmt(q.qty, dp)); toast('Quantity copied.'); }
+          catch { toast('Could not copy the quantity.', 'error'); }
+        } }, 'Copy')),
       lines,
       q.unscaled ? h('div', { class: 'warn' }, `${q.unscaled} section(s) are on pages without a scale and are not counted. Set the scale on those pages.`) : null,
       !secs ? h('div', { class: 'note' }, 'No takeoff yet. Click on the plan to start.') : null),

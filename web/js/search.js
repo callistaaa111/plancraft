@@ -2,7 +2,7 @@
 import { S } from './store.js';
 import * as api from './api.js';
 import { h, debounce } from './util.js';
-import { modal, toast } from './dialogs.js';
+import { modal, toast, progressBox } from './dialogs.js';
 import { openPage } from './pages.js';
 
 const KIND = { page: 'Page', item: 'Item', note: 'Note', text: 'Plan text' };
@@ -11,7 +11,7 @@ export function openProjectSearch() {
   if (!S.project) return;
   const input = h('input', { type: 'search', placeholder: 'Search pages, items, notes and PDF text...', autocomplete: 'off' });
   const results = h('div', { class: 'search-results' });
-  const note = h('div', { class: 'hint' }, 'Type at least two characters. Text search covers PDF pages that have a text layer; scanned plans need OCR (not yet).');
+  const note = h('div', { class: 'hint' }, 'Type at least two characters. Text search covers PDF pages that have a text layer; scanned plans can be OCRed if Tesseract is installed.');
   let closer = null;
 
   const render = (res) => {
@@ -49,7 +49,18 @@ export function openProjectSearch() {
   modal({
     title: 'Search project',
     size: 'xl',
-    body: h('div', { class: 'rev-compare' }, input, note, results),
+    body: h('div', { class: 'rev-compare' }, input, note, results,
+      h('div', { class: 'btn-row' },
+        h('button', { class: 'btn small', type: 'button', onclick: async () => {
+          const prog = progressBox('OCR scanned pages');
+          try {
+            const { task } = await api.ocrProject(S.project.id);
+            const r = await api.waitTask(task, t => prog.set(t.total ? t.done / t.total : null, t.message));
+            prog.close();
+            toast('OCR finished on ' + r.ocrPages + ' page(s). Reloading...');
+            setTimeout(() => location.reload(), 700);
+          } catch (err) { prog.close(); toast(err.message, 'error'); }
+        } }, 'OCR scanned pages (Tesseract)'))),
     buttons: [{ label: 'Close', value: null }],
     onOpen: ({ close }) => { closer = close; setTimeout(() => input.focus(), 40); },
   });

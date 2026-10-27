@@ -124,7 +124,12 @@ def item_quantities(item: dict, pages: dict, units: str = "m") -> dict:
         d = num(props.get("depth"))
         if d:
             extra.append(("Volume", total * d * u["vol_f"], u["vol"]))
-    return {"qty": total, "unit": unit, "per_page": per_page, "extra": extra, "unscaled": unscaled}
+    adjust = num(props.get("adjust"))
+    if adjust:
+        total += adjust
+        extra.append(("Manual adjustment", adjust, unit))
+    return {"qty": total, "unit": unit, "per_page": per_page, "extra": extra, "unscaled": unscaled,
+            "adjust": adjust}
 
 
 def with_allowance(qty: float, pct) -> float:
