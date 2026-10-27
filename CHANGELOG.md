@@ -3,7 +3,7 @@
 All notable changes to PlanCraft. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [1.2.0] - 2026-10-27
 
 ### Added
 
@@ -27,12 +27,21 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - Pale takeoff colours (yellow, lime, pastels) get a dark edge so they show on white paper; light-theme grey text and
   input borders are darker to meet WCAG AA.
 - The demo prices its downlights through an assembly, so its quote shows real totals.
+- New PDF imports keep the plan text in the kept PDF instead of `project.json`, so projects stay smaller and save
+  faster; search and OCR skipping work as before.
 
 ### Fixed
 
 - Selecting a count item made its own markers vanish from the plan (and froze the status hint) when its sections had
   no id, as in the demo.
 - Price list rows were three lines tall with the Labour column empty: a workspace style leaked into the table.
+- Minimising PlanCraft right after an edit no longer makes the next edit fail with "changed in another window".
+- Circuit lengths are no longer rounded before the allowance, so an 8.34 m run at 20% gives 11 m as the Summary
+  shows, not 10 m.
+- Excel and proposal pricing use the folder's assembly when an item carries an assembly id this project does not
+  have, for example an item pasted from another job.
+- Project search reads the whole text of the plan PDF; it stopped at the first 20,000 characters, so a panel name
+  late in a long schedule was never found.
 
 ## [1.1.3] - 2026-10-27
 
