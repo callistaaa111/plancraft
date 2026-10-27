@@ -258,7 +258,8 @@ export async function flushSave() {
 }
 
 export function saveOnClose() {
-  if (S.project && (S.save.dirty || saveSoon.pending())) {
+  // saving: the save started when the window was hidden may be cut off by the close, so send it again
+  if (S.project && (S.save.dirty || saveSoon.pending() || saving)) {
     saveSoon.cancel();
     api.beaconSave(S.project.id, S.project);
   }

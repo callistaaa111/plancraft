@@ -29,7 +29,7 @@ def run(task, project: dict, store, pid: str) -> dict:
     done = 0
     for i, page in enumerate(pages):
         task.progress(i, len(pages), f"OCR page {i + 1} of {len(pages)}")
-        if page.get("text"):
+        if page.get("text") or page.get("hasText"):
             continue
         src = page.get("src") or {}
         if not src.get("file"):

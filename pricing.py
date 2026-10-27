@@ -39,13 +39,17 @@ def basis_value(item: dict, q: dict, basis: str) -> float:
     return q["qty"]
 
 
-def walk(nodes, assembly=None, path=()):
-    """Yield (folder_path, item, assembly id in effect) in tree order."""
+def walk(nodes, known, assembly=None, path=()):
+    """Yield (folder_path, item, assembly id in effect) in tree order. An id not in known (e.g. on an item pasted
+    from another project) is skipped and the folder's assembly applies, like assemblyFor in pricing.js."""
     for n in nodes:
         if n.get("kind") == "folder":
-            yield from walk(n.get("children") or [], n.get("assembly") or assembly, path + (n.get("name") or "Folder",))
+            own = n.get("assembly")
+            yield from walk(n.get("children") or [], known, own if own in known else assembly,
+                            path + (n.get("name") or "Folder",))
         else:
-            yield " / ".join(path), n, (n.get("props") or {}).get("assembly") or assembly
+            own = (n.get("props") or {}).get("assembly")
+            yield " / ".join(path), n, own if own in known else assembly
 
 
 def item_parts(item: dict, q: dict, assembly: dict | None, materials: dict) -> list[dict]:
@@ -69,7 +73,7 @@ def costing(project: dict) -> dict:
     assemblies = {a["id"]: a for a in project.get("assemblies") or []}
     lines = []                       # per item and material
     totals: OrderedDict[str, float] = OrderedDict()
-    for folder, item, aid in walk(project.get("tree") or []):
+    for folder, item, aid in walk(project.get("tree") or [], assemblies):
         asm = assemblies.get(aid)
         if not asm:
             continue

@@ -360,6 +360,14 @@ class PricingTests(unittest.TestCase):
         self.assertAlmostEqual(c["total"], c["subtotal"] * 1.1)
         self.assertNotIn("No materials", [ln["item"]["name"] for ln in c["lines"]])
 
+    def test_missing_item_assembly_falls_back_to_the_folder_like_the_screen(self):
+        import pricing
+        project = self.project()
+        lp1 = project["tree"][0]["children"][0]
+        lp1["props"]["assembly"] = "pasted-from-another-job"      # not in this project's assemblies
+        bom = {b["material"]["id"]: b for b in pricing.costing(project)["bom"]}
+        self.assertAlmostEqual(bom["w"]["qty"], 36)                # still priced by the folder's Lighting circuit
+
     def test_labour_and_quote_totals(self):
         import pricing
         project = {
@@ -495,6 +503,14 @@ class ExportTests(unittest.TestCase):
         self.assertIn("NO HOMERUN", wc["B4"].value)
         self.assertEqual(wc["D5"].value, "=ROUNDUP(C5*1.2,0)")
         self.assertEqual((wc["G4"].value, wc["H4"].value), ("EXIT SIGN", 2))
+
+    def test_circuit_length_is_not_rounded_before_the_allowance(self):
+        import openpyxl
+        project = {"name": "T", "units": "m", "pages": [{"id": "p1", "name": "GF", "scale": {"pxPerM": 10}}],
+                   "tree": [_item("linear", "LP1-1", [{"page": "p1", "points": [[0, 0], [83.4, 0]]}], allowance=20)]}
+        wc = openpyxl.load_workbook(io.BytesIO(export_xlsx.build(project)))["Circuits"]
+        # 8.34 m x 1.2 = 10.008 -> 11 m, as on the Summary sheet; 8.3 x 1.2 would round to 10
+        self.assertEqual((wc["C4"].value, wc["C4"].number_format), (8.34, "0.0"))
 
     def test_text_starting_with_equals_stays_text(self):
         import openpyxl
@@ -639,6 +655,29 @@ class SearchTests(unittest.TestCase):
         self.assertIn("note", kinds)
         self.assertTrue(all(r["pageId"] == "p1" for r in res["results"]))
         self.assertEqual(search.search(project, Path("."), "x")["results"], [])
+
+    def test_long_schedule_is_searched_to_the_end_and_not_stored_in_the_project(self):
+        import pymupdf as fitz
+
+        import importers
+        import search
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp)
+            (d / "pages").mkdir()
+            pdf = d / "schedule.pdf"
+            doc = fitz.open()
+            page = doc.new_page(width=2400, height=3400)
+            for i in range(600):                                   # about 30,000 characters before the panel name
+                page.insert_text((20, 10 + i * 5.5), f"CKT {i:03d} LIGHTING 20A 1P 3.5MM2 THHN IN 20MM PVC", fontsize=4)
+            page.insert_text((20, 3350), "PANEL LP-9Z", fontsize=8)
+            doc.save(pdf)
+            doc.close()
+            res = importers.import_pdf(_Task(), pdf, d / "pages", "schedule.pdf", 72, sources_dir=d / "sources")
+            pg = res["pages"][0]
+            self.assertNotIn("text", pg)                           # read from the kept PDF, not saved in project.json
+            self.assertTrue(pg["hasText"])
+            hits = search.search({"pages": [pg], "tree": []}, d, "LP-9Z")["results"]
+            self.assertEqual([h["type"] for h in hits], ["text"])
 
 
 class ArchiveTests(unittest.TestCase):
