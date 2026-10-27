@@ -3,6 +3,14 @@
 All notable changes to PlanCraft. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.3] - 2026-10-27
+
+### Fixed
+
+- **Blank PlanCraft window after 1.1.2.** The new item clipboard module imported uid from store.js, where it is not
+  exported, so the browser module graph failed before the UI could render. It now imports uid from util.js.
+- Added scripts/check_js_imports.py to CI so a named import that does not exist fails the build.
+
 ## [1.1.2] - 2026-10-27
 
 ### Added

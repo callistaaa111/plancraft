@@ -1,5 +1,6 @@
 // Copy/paste a takeoff item or folder, including its sections when the target project has matching pages.
-import { S, nodeById, mutate, uid } from './store.js';
+import { S, nodeById, mutate } from './store.js';
+import { uid } from './util.js';
 import { toast } from './dialogs.js';
 
 const KEY = 'plancraft.itemclip';

@@ -16,14 +16,14 @@ Excel or a PlanSwift job. It also opens your existing `.SwiftJob` files, includi
 
 ## Download and install
 
-1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.1.2.exe`).
+1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.1.3.exe`).
 2. Run it. It installs for the current Windows user, so it does **not** need administrator rights.
 3. Start **PlanCraft** from the Desktop or Start menu. It opens in its own window; closing the window stops the
    server about 10 minutes later.
 
 Your projects live in `%LOCALAPPDATA%\PlanCraft\data` and are kept when you update or uninstall.
 
-**Portable:** download `PlanCraft-1.1.2-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
+**Portable:** download `PlanCraft-1.1.3-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
 `portable.txt` next to the executable to keep the projects in a `data` folder beside it.
 
 **From source** (Python 3.10+):
@@ -206,6 +206,7 @@ tests/             52 unittest cases (quantities, imports, exports, API, securit
 packaging/         PyInstaller spec and Inno Setup script
 scripts/build.ps1  local release build
 scripts/privacy_scan.py  blocks client documents, secrets and PII in CI
+scripts/check_js_imports.py  guards the browser module graph
 ```
 
 The server listens on `127.0.0.1` only and checks the `Host` header. It has no accounts, telemetry or cloud calls.
