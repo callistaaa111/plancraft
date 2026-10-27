@@ -3,6 +3,19 @@
 All notable changes to PlanCraft. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.1] - 2026-10-27
+
+### Added
+
+- **Try demo:** creates a small electrical sample project with a plan, folders, materials, assemblies and a quote,
+  then shows a short tour of the workflow.
+- **Copy/paste items and folders:** copy a takeoff item or folder and paste it here or in another project. Sections
+  are restored when the target project has a matching source/page or page name; unmatched sections are reported.
+
+### Changed
+
+- Version 1.1.1; the frozen build includes the demo module.
+
 ## [1.1.0] - 2026-10-27
 
 The estimating and daily-work release: a proposal PDF, project templates, page management, bulk editing, optional OCR

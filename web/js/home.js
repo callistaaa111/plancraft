@@ -26,6 +26,7 @@ export function initHome(listEl, actions) {
   document.getElementById('btnImportArchive')?.addEventListener('click', importArchive);
   document.getElementById('btnNewFromTemplate')?.addEventListener('click', openTemplates);
   document.getElementById('btnStorage')?.addEventListener('click', openStorage);
+  document.getElementById('btnDemo')?.addEventListener('click', openDemo);
   // Ctrl+F or / jumps to the search box while the projects screen is showing
   document.addEventListener('keydown', e => {
     if (tools().hidden || tools().closest('[hidden]') || document.querySelector('.modal-back')) return;
@@ -101,6 +102,26 @@ function card(p) {
     h('div', { class: 'name', title: p.name }, p.name),
     h('div', { class: 'meta' }, (pinned.has(p.id) ? '★ · ' : '') + `${p.pages} page${p.pages === 1 ? '' : 's'} · ${p.items} item${p.items === 1 ? '' : 's'} · ${timeAgo(p.modified)}`)),
   more);
+}
+
+async function openDemo() {
+  let p;
+  try { p = await api.createDemo(); } catch (err) { toast(err.message, 'error'); return; }
+  await modal({
+    title: 'Demo project',
+    size: 'wide',
+    body: h('div', { class: 'rev-compare' },
+      h('p', null, 'A small electrical sheet with a price list, assemblies and a quote. Try:'),
+      h('ol', { class: 'demo-steps' },
+        h('li', null, 'Click a page and check its scale in the Pages list.'),
+        h('li', null, 'Press T and add a linear, area or count item.'),
+        h('li', null, 'Press A to auto count a symbol; use Save symbol to reuse it.'),
+        h('li', null, 'Open Materials → Quote for the build-up and Download proposal PDF.'),
+        h('li', null, 'Open the project card menu for Compare revisions, templates, CSV and the archive.')),
+      h('p', { class: 'hint' }, 'You can delete the demo project at any time; it is a normal project in your data folder.')),
+    buttons: [{ label: 'Open demo', value: true, primary: true }],
+  });
+  location.hash = '#/p/' + encodeURIComponent(p.id);
 }
 
 function bytes(n) {

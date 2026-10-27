@@ -76,6 +76,7 @@ setBtn('#btnFit', 'fit', '');
 setBtn('#btnImportJob', 'job', 'Open .SwiftJob');
 setBtn('#btnImportArchive', 'upload', 'Import archive');
 setBtn('#btnNewFromTemplate', 'copy', 'New from template');
+setBtn('#btnDemo', 'wand', 'Try demo');
 setBtn('#btnNewFromPdf', 'pdf', 'New from PDF');
 setBtn('#btnNewProject', 'plus', 'New project');
 for (const b of $$('[data-new]')) {

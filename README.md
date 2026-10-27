@@ -70,6 +70,9 @@ already installed; it adds the same shortcuts.
   the page. If Tesseract is installed, **OCR scanned pages** makes image-only plans searchable too.
 - **Project templates:** save a project's price list, assemblies, folder/item skeleton and settings, then start a new
   job from it (pages and takeoff are never copied).
+- **Try demo** creates a small sample electrical project with a plan, folders, materials, assemblies and a quote.
+- **Copy/paste items and folders** works within a project and between projects; sections are restored when the target
+  has the same source/page or page name.
 - Scale, units and allowances are per page or per item, with metric and imperial units.
 
 ### Takeoff
@@ -160,7 +163,7 @@ python -m venv .venv
 python -m pip install -r requirements-dev.txt
 
 python server.py --open                              # run from source
-python -m unittest discover -s tests -v              # 51 tests
+python -m unittest discover -s tests -v              # 52 tests
 ruff check .                                         # lint
 python -m coverage run -m unittest discover -s tests
 python -m coverage report -m
@@ -180,6 +183,7 @@ builds the installer and portable zip on a `v*` tag and publishes them to GitHub
 server.py          local HTTP server, API, static files, launcher
 store.py           one folder per project, atomic saves, backups, trash
 archive.py         portable .plancraft.zip export/import
+demo.py            built-in sample project for "Try demo"
 compare.py         revision matching and quantity deltas
 search.py          page/item/note/PDF-text search
 templates.py       project templates (prices, assemblies, folders, settings)
@@ -197,7 +201,7 @@ pricelist.py       supplier price-list reader
 pricing.py         materials, assemblies and costing
 tasks.py           background import/export jobs
 web/               plain ES modules + canvas UI, no bundler
-tests/             51 unittest cases (quantities, imports, exports, API, security)
+tests/             52 unittest cases (quantities, imports, exports, API, security)
 packaging/         PyInstaller spec and Inno Setup script
 scripts/build.ps1  local release build
 scripts/privacy_scan.py  blocks client documents, secrets and PII in CI

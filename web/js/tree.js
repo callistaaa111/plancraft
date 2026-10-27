@@ -6,6 +6,7 @@ import {
 import { h, fmt } from './util.js';
 import { icon } from './icons.js';
 import { openMenu, confirmBox, modal } from './dialogs.js';
+import { copyNode, hasNodeClip, pasteNode } from './itemclip.js';
 
 const TYPE_NAME = { linear: 'Linear', area: 'Area', count: 'Count' };
 let el = null;
@@ -322,7 +323,9 @@ function onContext(e) {
       { label: 'New area item', icon: 'area', action: () => addNode('area') },
       { label: 'New count item', icon: 'count', action: () => addNode('count') },
       { label: 'New folder', icon: 'folderPlus', action: () => addNode('folder') },
-    ]);
+      hasNodeClip() && 'sep',
+      hasNodeClip() && { label: 'Paste item/folder', icon: 'paste', action: () => pasteNode(null) },
+    ].filter(Boolean));
     return;
   }
   const n = nodeById(r.dataset.id);
@@ -336,6 +339,8 @@ function onContext(e) {
     isFolder && 'sep',
     !isFolder && { label: 'Take off on plan', icon: 'takeoff', kbd: 'T', action: () => selectNode(n.id) },
     { label: 'Rename', icon: 'rename', kbd: 'F2', action: () => startRename(n.id) },
+    { label: isFolder ? 'Copy folder' : 'Copy item', icon: 'copy', action: () => copyNode(n.id) },
+    hasNodeClip() && { label: 'Paste here', icon: 'paste', action: () => pasteNode(n.id) },
     { label: isFolder ? 'Duplicate (items without takeoff)' : 'Duplicate (without takeoff)', icon: 'copy', action: () => duplicateNode(n.id) },
     { label: n.visible === false ? 'Show on plan' : 'Hide on plan', icon: n.visible === false ? 'eye' : 'eyeOff', action: () => toggleVisible(n.id) },
     'sep',

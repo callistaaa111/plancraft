@@ -33,6 +33,7 @@ export const listTemplates = () => req('GET', '/api/templates');
 export const saveTemplate = (project, name) => req('POST', '/api/templates', { project, name });
 export const deleteTemplate = id => req('DELETE', `/api/templates/${encodeURIComponent(id)}`);
 export const createProjectFromTemplate = (name, template) => req('POST', '/api/projects', { name, template });
+export const createDemo = () => req('POST', '/api/demo', {});
 export const duplicateProject = (id, name) => req('POST', `/api/projects/${encodeURIComponent(id)}/duplicate`, { name });
 export const storage = () => req('GET', '/api/storage');
 export const emptyTrash = () => req('DELETE', '/api/trash');
