@@ -1,6 +1,6 @@
 # 1.x is the stable ABI build PlanCraft needs; 2.x pulls the layout/OCR stack (onnxruntime, ~250 MB) that the
 # takeoff app does not use.
-pymupdf>=1.24,<2
+pymupdf>=1.28.2,<2
 pillow>=10
 openpyxl>=3.1
 opencv-python-headless>=4.8
