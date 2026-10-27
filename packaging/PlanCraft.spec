@@ -76,6 +76,7 @@ hiddenimports = [
     "export_csv",
     "export_xlsx",
     "export_swiftjob",
+    "folderbackup",
     "ocr",
     "pricelist",
     "pricing",

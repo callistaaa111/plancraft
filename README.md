@@ -164,7 +164,7 @@ python -m venv .venv
 python -m pip install -r requirements-dev.txt
 
 python server.py --open                              # run from source
-python -m unittest discover -s tests -v              # 52 tests
+python -m unittest discover -s tests -v              # 54 tests
 ruff check .                                         # lint
 python -m coverage run -m unittest discover -s tests
 python -m coverage report -m
@@ -202,7 +202,7 @@ pricelist.py       supplier price-list reader
 pricing.py         materials, assemblies and costing
 tasks.py           background import/export jobs
 web/               plain ES modules + canvas UI, no bundler
-tests/             52 unittest cases (quantities, imports, exports, API, security)
+tests/             54 unittest cases (quantities, imports, exports, API, security)
 packaging/         PyInstaller spec and Inno Setup script
 scripts/build.ps1  local release build
 scripts/privacy_scan.py  blocks client documents, secrets and PII in CI

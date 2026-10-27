@@ -12,7 +12,7 @@ import { Viewer } from './viewer.js';
 import { initTree, addNode } from './tree.js';
 import { initPages, openPage } from './pages.js';
 import { initProps } from './props.js';
-import { initHome, renderHome } from './home.js';
+import { initHome, renderHome, openAbout } from './home.js';
 import { scaleDialog, calibrateDialog, confirmAutoScale } from './scale.js';
 import { cropToNewPage, copyPage, pastePage } from './pageops.js';
 import { initMarkup } from './markup.js';
@@ -633,6 +633,8 @@ function showHelp() {
     ['Page Up / Page Down', 'Previous / next page'],
     ['Del', 'Delete the selected section (or marker)'], ['Alt+click a point', 'Remove that point'], ['Double-click a line', 'Insert a point (Select tool)'],
     ['Ctrl+Z / Ctrl+Y', 'Undo / redo'], ['Ctrl+P', 'Print / export the plans as PDF'], ['F2', 'Rename the selected item (in the list)'], ['Ctrl+S', 'Save now (it also saves by itself)'],
+    ['Ctrl+K', 'Command menu: type what you want to do'], ['Ctrl+Shift+F', 'Search page names, items, notes and plan text'],
+    ['Ctrl+F or /', 'Search projects (projects screen)'], ['?', 'This list'],
   ];
   modal({
     title: 'Keyboard and mouse',
@@ -667,6 +669,7 @@ function projectCommands() {
     { label: 'UI scale: 110%', hint: 'View', action: () => applyUiScale(1.1) },
     { label: 'UI scale: 125%', hint: 'View', action: () => applyUiScale(1.25) },
     { label: 'Keyboard shortcuts', hint: '?', action: () => showHelp() },
+    { label: 'About PlanCraft and diagnostics', hint: 'Help', action: () => openAbout() },
   ];
 }
 
