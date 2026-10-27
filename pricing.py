@@ -9,6 +9,8 @@ Part quantity for one item = basis value x factor / pack, where basis is one of
   qtyAllow  the quantity with the item's allowance, rounded up like the takeoff sheets
   perimeter / wallArea / volume   the item's extra quantities
   each      1 for every item that has takeoff (e.g. one panel connector per circuit)
+
+Cost build-up: subtotal -> overhead -> contingency -> the user's extra lines -> markup -> tax.
 """
 from __future__ import annotations
 
@@ -65,6 +67,22 @@ def item_parts(item: dict, q: dict, assembly: dict | None, materials: dict) -> l
     return out
 
 
+def extra_lines(settings: dict, subtotal: float) -> list[dict]:
+    """The user's own cost lines (permits, mobilization, bond...), added after contingency and before markup.
+    settings.extras = [{name, type: "pct" (of the material + labour subtotal) | "fixed", value}]"""
+    out = []
+    for e in settings.get("extras") or []:
+        if not isinstance(e, dict):
+            continue
+        name = str(e.get("name") or "").strip() or "Other cost"
+        value = num(e.get("value"))
+        fixed = e.get("type") == "fixed"
+        out.append({"name": name, "type": "fixed" if fixed else "pct", "value": value,
+                    "label": name if fixed else f"{name} {value:g}%",
+                    "amount": value if fixed else subtotal * value / 100})
+    return out
+
+
 def costing(project: dict) -> dict:
     """Bill of materials and costs for the whole project."""
     units = project.get("units") or "m"
@@ -98,7 +116,8 @@ def costing(project: dict) -> dict:
     tax_pct = num(settings.get("tax"))
     overhead = subtotal * overhead_pct / 100
     contingency = (subtotal + overhead) * contingency_pct / 100
-    before_markup = subtotal + overhead + contingency
+    extras = extra_lines(settings, subtotal)
+    before_markup = subtotal + overhead + contingency + sum(e["amount"] for e in extras)
     markup = before_markup * markup_pct / 100
     before_tax = before_markup + markup
     tax = before_tax * tax_pct / 100
@@ -106,7 +125,7 @@ def costing(project: dict) -> dict:
         "lines": lines, "bom": bom,
         "materials": materials_subtotal, "labour": labour_subtotal, "subtotal": subtotal,
         "overhead": overhead_pct, "overheadAmount": overhead,
-        "contingency": contingency_pct, "contingencyAmount": contingency,
+        "contingency": contingency_pct, "contingencyAmount": contingency, "extras": extras,
         "markup": markup_pct, "markupAmount": markup,
         "tax": tax_pct, "taxAmount": tax,
         "total": before_tax + tax,
