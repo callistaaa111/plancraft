@@ -12,7 +12,7 @@ and the project uses [Semantic Versioning](https://semver.org/).
 - **Folder backup** (Storage): copies new and changed files of the data folder to a folder you choose (OneDrive, a
   USB drive) every 30 minutes and on demand. It never deletes there; a failed automatic backup is shown in Storage.
 - The keyboard shortcuts list now includes Ctrl+K, Ctrl+Shift+F and project search.
-- **Proposal PDF (quote)** in the Export menu; **Text and button size** (UI scale) in About.
+- **Proposal PDF (quote)** in the Export menu; **Text and button size** in About: type any size from 80% to 150%.
 
 ### Changed
 
