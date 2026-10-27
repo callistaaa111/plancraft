@@ -3,6 +3,16 @@
 All notable changes to PlanCraft. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **About PlanCraft** (projects screen and Ctrl+K): version, data folder, log file, library versions, and a
+  **Copy diagnostics** button for bug reports (no plans, prices or takeoff).
+- **Folder backup** (Storage): copies new and changed files of the data folder to a folder you choose (OneDrive, a
+  USB drive) every 30 minutes and on demand. It never deletes there; a failed automatic backup is shown in Storage.
+- The keyboard shortcuts list now includes Ctrl+K, Ctrl+Shift+F and project search.
+
 ## [1.1.3] - 2026-10-27
 
 ### Fixed

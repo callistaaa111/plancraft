@@ -758,6 +758,43 @@ class QolTests(unittest.TestCase):
             self.assertEqual(store.storage()["trashCount"], 0)
 
 
+class FolderBackupTests(unittest.TestCase):
+    def test_copies_changed_files_only_and_skips_trash_and_cache(self):
+        import folderbackup
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Store(Path(tmp) / "data")
+            dest = Path(tmp) / "onedrive"
+            dest.mkdir()
+            p = store.create("Backed up job", "m")
+            store.cache_dir(p["id"]).mkdir()
+            (store.cache_dir(p["id"]) / "thumb.jpg").write_bytes(b"x")
+            store.delete(store.create("Deleted job", "m")["id"])
+
+            with self.assertRaises(ValueError):
+                folderbackup.set_folder(store.root, str(store.root / "projects"))     # inside the data folder
+            with self.assertRaises(ValueError):
+                folderbackup.run(None, store.root)                                   # no folder chosen yet
+            folderbackup.set_folder(store.root, str(dest))
+
+            first = folderbackup.run(None, store.root)
+            self.assertGreaterEqual(first["copied"], 1)
+            self.assertTrue((dest / "projects" / p["id"] / "project.json").is_file())
+            self.assertFalse((dest / "trash").exists())
+            self.assertFalse((dest / "projects" / p["id"] / "cache").exists())
+            self.assertTrue((dest / folderbackup.LAST).is_file())
+
+            self.assertEqual(folderbackup.run(None, store.root)["copied"], 0)       # nothing changed
+            p["name"] = "Backed up job, revised"
+            store.save(p["id"], p)
+            self.assertGreaterEqual(folderbackup.run(None, store.root)["copied"], 1)
+            self.assertIn("revised", (dest / "projects" / p["id"] / "project.json").read_text(encoding="utf-8"))
+
+            store.delete(p["id"])                                                    # deleted here, kept there
+            folderbackup.run(None, store.root)
+            self.assertTrue((dest / "projects" / p["id"] / "project.json").is_file())
+            self.assertEqual(folderbackup.set_folder(store.root, "")["folder"], "")
+
+
 class TemplateTests(unittest.TestCase):
     def test_template_roundtrip_drops_takeoff_and_keeps_prices(self):
         import templates
@@ -850,6 +887,16 @@ class ApiTests(unittest.TestCase):
         with urllib.request.urlopen(self.base + "/api/ping") as r:
             self.assertEqual(r.headers["X-Content-Type-Options"], "nosniff")
             self.assertEqual(r.headers["X-Frame-Options"], "DENY")
+
+    def test_about_reports_folders_and_versions(self):
+        from version import __version__
+        st, info = self.call("GET", "/api/about")
+        self.assertEqual(st, 200)
+        self.assertEqual(info["version"], __version__)
+        self.assertEqual(Path(info["data"]), Path(self.tmp.name))
+        self.assertIn("PyMuPDF", info["libs"])
+        st, _ = self.call("PUT", "/api/backup", {"folder": "relative/path"})
+        self.assertEqual(st, 400)
 
     def test_same_origin_helper(self):
         import server
