@@ -21,6 +21,7 @@ import { openPrint } from './printdialog.js';
 import { getDraft, dropDraft, sameContent } from './recovery.js';
 import { initAutoCount } from './autocount.js';
 import { initCompare } from './compare.js';
+import { openProjectSearch } from './search.js';
 
 const viewer = new Viewer($('#canvasHost'), $('#canvas'));
 initMarkup(viewer);
@@ -59,6 +60,7 @@ setBtn('#btnMaterials', 'tag', 'Materials');
 $('#btnExport').innerHTML = `${icon('download')}<span class="lbl">Export</span>${icon('caret')}`;
 setBtn('#btnPrint', 'printer', 'Print / PDF');
 setBtn('#btnHelp', 'help', '');
+setBtn('#btnSearch', 'search', '');
 setBtn('#btnAddPages', 'plus', '');
 setBtn('#btnPrevPage', 'left', '');
 setBtn('#btnNextPage', 'right', '');
@@ -66,6 +68,7 @@ setBtn('#btnZoomIn', 'zoomIn', '');
 setBtn('#btnZoomOut', 'zoomOut', '');
 setBtn('#btnFit', 'fit', '');
 setBtn('#btnImportJob', 'job', 'Open .SwiftJob');
+setBtn('#btnImportArchive', 'upload', 'Import archive');
 setBtn('#btnNewFromPdf', 'pdf', 'New from PDF');
 setBtn('#btnNewProject', 'plus', 'New project');
 for (const b of $$('[data-new]')) {
@@ -100,6 +103,7 @@ function viewArea() {
 }
 const printPlans = () => openPrint({ viewArea });
 $('#btnHelp').onclick = () => showHelp();
+$('#btnSearch').onclick = () => openProjectSearch();
 $('#btnPrevPage').onclick = () => stepPage(-1);
 $('#btnNextPage').onclick = () => stepPage(1);
 $('#btnZoomIn').onclick = () => viewer.zoomAt(1.25);
@@ -618,6 +622,7 @@ document.addEventListener('keydown', e => {
     else if (lk === 'y' || (lk === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
     else if (lk === 's') { e.preventDefault(); flushSave().then(() => toast('Saved.')).catch(err => toast(err.message, 'error')); }
     else if (lk === 'p') { e.preventDefault(); printPlans(); }
+    else if (lk === 'f' && e.shiftKey) { e.preventDefault(); openProjectSearch(); }
     else if (lk === 'c' && !window.getSelection()?.toString() && S.pageId) { e.preventDefault(); copyPage(S.pageId); }
     else if (lk === 'v') { e.preventDefault(); pastePage(); }
     return;

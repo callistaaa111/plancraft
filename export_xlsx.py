@@ -222,14 +222,37 @@ def build(project: dict) -> bytes:
             wb_.cell(r, 6).number_format = money
             r += 1
         last = r - 1
+        r0 = r
         rows_ = [("Subtotal", f"=SUM(F5:F{last})"),
-                 (f"Markup {cost['markup']:g}%", f"=F{r}*{cost['markup'] / 100:g}"),
-                 ("TOTAL", f"=F{r}+F{r + 1}")]
+                 (f"Overhead {cost['overhead']:g}%", f"=F{r0}*{cost['overhead'] / 100:g}"),
+                 (f"Contingency {cost['contingency']:g}%", f"=(F{r0}+F{r0 + 1})*{cost['contingency'] / 100:g}"),
+                 (f"Markup {cost['markup']:g}%", f"=(F{r0}+F{r0 + 1}+F{r0 + 2})*{cost['markup'] / 100:g}"),
+                 (f"Tax {cost['tax']:g}%", f"=(F{r0}+F{r0 + 1}+F{r0 + 2}+F{r0 + 3})*{cost['tax'] / 100:g}"),
+                 ("TOTAL", f"=SUM(F{r0}:F{r0 + 4})")]
         for i, (label, f) in enumerate(rows_):
             wb_.cell(r + i, 5, label).font = BOLD
             c = formula(wb_, r + i, 6, f)
             c.font, c.number_format, c.border = BOLD, money, BORDER
         wb_.freeze_panes = "A5"
+
+        wq = wb.create_sheet("Quote")
+        _title(wq, project, "Cost build-up and quote summary")
+        _header(wq, 4, ["LINE", "AMOUNT"], [44, 18])
+        quote_rows = [
+            ("Materials", cost["materials"]), ("Labour", cost["labour"]), ("Subtotal", cost["subtotal"]),
+            (f"Overhead {cost['overhead']:g}%", cost["overheadAmount"]),
+            (f"Contingency {cost['contingency']:g}%", cost["contingencyAmount"]),
+            (f"Markup {cost['markup']:g}%", cost["markupAmount"]),
+            (f"Tax {cost['tax']:g}%", cost["taxAmount"]),
+            ("TOTAL", cost["total"]),
+        ]
+        for i, (label, value) in enumerate(quote_rows, start=5):
+            wq.cell(i, 1, label).border = BORDER
+            c = wq.cell(i, 2, round(float(value or 0), 2))
+            c.border, c.number_format = BORDER, money
+            if label == "TOTAL":
+                wq.cell(i, 1).font = BOLD
+                c.font = BOLD
 
         wi = wb.create_sheet("Materials by Item")
         _title(wi, project, "Materials for each takeoff item (before rounding to whole units)")
@@ -292,6 +315,103 @@ def build(project: dict) -> bytes:
             for cell in row:
                 if cell.data_type == "f" and (ws.title, cell.row, cell.column) not in ours:
                     cell.data_type = "s"
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def build_compare(report: dict) -> bytes:
+    """Excel revision report: summary, item deltas, totals by type/unit and page matching."""
+    old = report.get("old") or {}
+    new = report.get("new") or {}
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Revision"
+    ws["A1"] = f"Revision comparison: {old.get('name') or 'Old'} -> {new.get('name') or 'New'}"
+    ws["A1"].font = Font(bold=True, size=14)
+    ws["A2"] = (f"Old: {old.get('name') or ''} ({old.get('pages', 0)} pages)  ·  "
+                f"New: {new.get('name') or ''} ({new.get('pages', 0)} pages)")
+    ws["A2"].font = Font(italic=True, color="666666")
+    s = report.get("summary") or {}
+    ws["A3"] = (f"{s.get('changed', 0)} changed · {s.get('added', 0)} added · {s.get('removed', 0)} removed · "
+                f"{s.get('same', 0)} unchanged · {s.get('matchedPages', 0)} pages matched")
+    ws["A3"].font = Font(color="444444")
+
+    head = ["STATUS", "FOLDER", "ITEM", "TYPE", "UNIT", "OLD QTY", "NEW QTY", "DELTA", "DELTA %", "PAGES", "NOTES"]
+    _header(ws, 5, head, [11, 22, 32, 8, 7, 12, 12, 12, 9, 34, 40])
+    fill = {
+        "added": PatternFill("solid", fgColor="C6EFCE"),
+        "removed": PatternFill("solid", fgColor="FFC7CE"),
+        "changed": PatternFill("solid", fgColor="FFEB9C"),
+    }
+    r = 6
+    for item in report.get("items") or []:
+        notes = []
+        if item.get("unscaled"):
+            notes.append(f"{item['unscaled']} section(s) without a page scale")
+        if item.get("oldSections") != item.get("newSections"):
+            notes.append(f"sections {item.get('oldSections', 0)} -> {item.get('newSections', 0)}")
+        values = [str(item.get("status") or "").upper(), item.get("folder") or "", item.get("name") or "",
+                  TYPE_LABEL.get(item.get("type"), item.get("type")), item.get("unit") or "",
+                  round(float(item.get("oldQty") or 0), 4), round(float(item.get("newQty") or 0), 4),
+                  round(float(item.get("delta") or 0), 4),
+                  (round(float(item["pct"]), 2) if item.get("pct") is not None else None),
+                  ", ".join(item.get("pages") or []), "; ".join(notes)]
+        for c, v in enumerate(values, start=1):
+            cell = ws.cell(r, c, v)
+            cell.border = BORDER
+            if c in (6, 7, 8):
+                cell.number_format = NUM
+            if c == 9 and v is not None:
+                cell.number_format = '0.00"%"'
+        status = item.get("status")
+        if status in fill:
+            for c in range(1, len(head) + 1):
+                ws.cell(r, c).fill = fill[status]
+        r += 1
+    if r > 6:
+        ws.auto_filter.ref = f"A5:K{r - 1}"
+    ws.freeze_panes = "A6"
+
+    # Totals by type and unit.
+    wt = wb.create_sheet("Totals")
+    _title(wt, new, "Totals by type and unit")
+    _header(wt, 4, ["TYPE", "UNIT", "OLD QTY", "NEW QTY", "DELTA", "DELTA %", "ITEMS"],
+            [14, 10, 14, 14, 14, 10, 10])
+    for i, t in enumerate(report.get("totals") or [], start=5):
+        pct = (t["delta"] / t["oldQty"] * 100) if abs(t.get("oldQty") or 0) > 1e-9 else None
+        vals = [TYPE_LABEL.get(t.get("type"), t.get("type")), t.get("unit"), round(t.get("oldQty") or 0, 4),
+                round(t.get("newQty") or 0, 4), round(t.get("delta") or 0, 4),
+                (round(pct, 2) if pct is not None else None), t.get("items", 0)]
+        for c, v in enumerate(vals, start=1):
+            cell = wt.cell(i, c, v)
+            cell.border = BORDER
+            if c in (3, 4, 5):
+                cell.number_format = NUM
+            if c == 6 and v is not None:
+                cell.number_format = '0.00"%"'
+
+    # Page matching.
+    wp = wb.create_sheet("Pages")
+    _title(wp, new, "Page matching")
+    _header(wp, 4, ["STATUS", "OLD PAGE", "NEW PAGE", "MATCHED BY"], [14, 42, 42, 14])
+    pages = report.get("pages") or {}
+    r = 5
+    for pair in pages.get("pairs") or []:
+        for c, v in enumerate(["matched", pair.get("oldName"), pair.get("newName"), pair.get("how")], start=1):
+            wp.cell(r, c, v).border = BORDER
+        r += 1
+    for p in pages.get("onlyOld") or []:
+        for c, v in enumerate(["only old", p.get("name"), "", ""], start=1):
+            wp.cell(r, c, v).border = BORDER
+            wp.cell(r, c).fill = fill["removed"]
+        r += 1
+    for p in pages.get("onlyNew") or []:
+        for c, v in enumerate(["only new", "", p.get("name"), ""], start=1):
+            wp.cell(r, c, v).border = BORDER
+            wp.cell(r, c).fill = fill["added"]
+        r += 1
+
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()

@@ -15,7 +15,16 @@ The first packaged release: PlanCraft now installs and runs without a separate P
   data beside it instead.
 - The running version is returned by `/api/ping` and shown on the Projects screen; `python server.py --version` works
   for source runs.
-- GitHub Actions: tests on Python 3.10-3.13 and ruff on every push and pull request; tag-driven release builds.
+- **Compare revisions:** the project card menu can compare two projects, match pages by source/sheet name, list
+  old/new quantities, deltas and percentages for every item, and export the report as Excel.
+- **Search project** (Ctrl+Shift+F): page names, items, notes and PDF text, with a jump to the matching page. PDF
+  text is kept at import; older projects fall back to reading the retained source PDF.
+- **Project archive export/import** (.plancraft.zip): project.json, page images and source PDFs in one zip; import
+  creates a new project and checks sizes and paths before extracting.
+- **Labour and quote build-up:** mark a price-list row as Labour, then use the new Quote tab for overhead,
+  contingency, markup and VAT/tax. The properties panel and the Excel Quote sheet show the same arithmetic.
+- GitHub Actions: tests on Python 3.10-3.13, ruff and a privacy gate on every push and pull request; tag-driven
+  release builds.
 - Ruff, coverage and development dependencies; issue forms, pull request template, Dependabot, contributing and
   security guides.
 
@@ -39,3 +48,6 @@ The first packaged release: PlanCraft now installs and runs without a separate P
   `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and `Referrer-Policy: no-referrer`.
 - Documented the local-only trust model, the Host-header check, and the lack of encryption at rest in
   [SECURITY.md](SECURITY.md).
+- Added `scripts/privacy_scan.py` and a CI privacy job that block client documents, archives, large files, known
+  credentials and private keys; the local data folder is checked to stay ignored. Results and guidance are in
+  [docs/PRIVACY.md](docs/PRIVACY.md).
