@@ -16,6 +16,7 @@ async function req(method, url, body) {
   return data;
 }
 
+export const ping = () => req('GET', '/api/ping');
 export const listProjects = () => req('GET', '/api/projects');
 export const createProject = (name, units) => req('POST', '/api/projects', { name, units });
 export const getProject = id => req('GET', `/api/projects/${encodeURIComponent(id)}`);

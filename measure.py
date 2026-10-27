@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import math
 
+
 def _unit(length: str, per_m: float, imperial: bool, vol_f: float) -> dict:
     # areas are the unit squared; volumes are m³ (metric) or yd³ (imperial); vol_f turns unit³ into that
     return {"len": length, "area": f"{length}²", "vol": "yd³" if imperial else "m³", "count": "ea",

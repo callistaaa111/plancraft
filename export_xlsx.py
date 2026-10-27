@@ -125,7 +125,7 @@ def build(project: dict) -> bytes:
     # ---- Circuits (PANEL layout) --------------------------------------------------------------------
     circuits = defaultdict(dict)       # panel -> num -> [lm, desc, spec, allowance, flags]
     panel_order = []
-    for folder, item, q in rows:
+    for _folder, item, q in rows:
         if item.get("type") != "linear":
             continue
         m = CIRCUIT_NAME.match((item.get("name") or "").strip())
@@ -186,7 +186,7 @@ def build(project: dict) -> bytes:
             row += 1
         # OTHERS: count items
         others = defaultdict(float)
-        for folder, item, q in rows:
+        for _folder, item, q in rows:
             if item.get("type") == "count" and q["qty"]:
                 others[(item.get("name") or "").upper()] += q["qty"]
         wc.merge_cells("G2:H2")
@@ -199,7 +199,7 @@ def build(project: dict) -> bytes:
         for i, (name, qty) in enumerate(others.items(), start=4):
             wc.cell(i, 7, name).border = BORDER
             wc.cell(i, 8, int(qty)).border = BORDER
-        for col, w in zip("ABCDEFGH", (9, 28, 9, 12, 30, 3, 34, 8)):
+        for col, w in zip("ABCDEFGH", (9, 28, 9, 12, 30, 3, 34, 8), strict=True):
             wc.column_dimensions[col].width = w
 
     # ---- Bill of materials and costs ----------------------------------------------------------------

@@ -68,7 +68,7 @@ def costing(project: dict) -> dict:
     materials = {m["id"]: m for m in project.get("materials") or []}
     assemblies = {a["id"]: a for a in project.get("assemblies") or []}
     lines = []                       # per item and material
-    totals: "OrderedDict[str, float]" = OrderedDict()
+    totals: OrderedDict[str, float] = OrderedDict()
     for folder, item, aid in walk(project.get("tree") or []):
         asm = assemblies.get(aid)
         if not asm:

@@ -16,7 +16,7 @@ def _cv():
         import cv2
         import numpy as np
     except ImportError:
-        raise ValueError("Auto count and overlays need OpenCV. Run: python -m pip install opencv-python-headless numpy")
+        raise ValueError("Auto count and overlays need OpenCV. Run: python -m pip install opencv-python-headless numpy") from None
     return cv2, np
 
 
@@ -33,7 +33,7 @@ def _box(rect, W, H, what):
     try:
         x, y, w, h = (float(v) for v in rect)
     except (TypeError, ValueError):
-        raise ValueError(f"The {what} is not valid.")
+        raise ValueError(f"The {what} is not valid.") from None
     x0, y0 = max(0, int(round(x))), max(0, int(round(y)))
     x1, y1 = min(W, int(round(x + w))), min(H, int(round(y + h)))
     return x0, y0, x1, y1
@@ -114,7 +114,7 @@ def _find_shapes(img, tpl, area, rotations, min_score):
         if len(scores) > 30000:
             keep = np.argsort(scores)[::-1][:30000]
             ys, xs, scores = ys[keep], xs[keep], scores[keep]
-        out += zip(scores.tolist(), (xs + ax0 + tw / 2).tolist(), (ys + ay0 + th / 2).tolist())
+        out += zip(scores.tolist(), (xs + ax0 + tw / 2).tolist(), (ys + ay0 + th / 2).tolist(), strict=True)
     return out
 
 
@@ -250,7 +250,7 @@ def _find_dots(img, t, area, min_score):
         extra = np.maximum(0, _thick_rays(soft, xs, ys, t["R"]) - t["rays"] - 1)
         score = score * np.exp(-extra * 0.6)
     ok = score >= min_score
-    return list(zip(score[ok].tolist(), gx[ok].astype(float).tolist(), gy[ok].astype(float).tolist()))
+    return list(zip(score[ok].tolist(), gx[ok].astype(float).tolist(), gy[ok].astype(float).tolist(), strict=True))
 
 
 def tinted(path: Path, color: str, cache_dir: Path) -> Path:
