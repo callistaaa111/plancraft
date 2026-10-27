@@ -1,0 +1,123 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to build, for example 1.0.0 (a dry run: no release is published)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Windows installer and portable build
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Work out the version
+        shell: pwsh
+        run: |
+          $version = "${{ github.event.inputs.version }}"
+          if (-not $version) { $version = "${{ github.ref_name }}" -replace '^v', '' }
+          if ($version -notmatch '^\d+\.\d+\.\d+') { throw "Version must look like 1.2.3, got '$version'." }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "Building PlanCraft $version"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Test
+        run: python -m unittest discover -s tests -v
+
+      - name: Build the app
+        run: python -m PyInstaller packaging/PlanCraft.spec --noconfirm --clean
+
+      - name: Check the build
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "dist/PlanCraft/PlanCraft.exe")) { throw "PyInstaller did not produce PlanCraft.exe" }
+          $exe = (Resolve-Path "dist/PlanCraft/PlanCraft.exe").Path
+          $data = Join-Path $PWD "dist/smoke-data"
+          & $exe --port 8798 --data $data
+          $info = $null
+          for ($i = 0; $i -lt 30; $i++) {
+            Start-Sleep -Milliseconds 500
+            try { $info = Invoke-RestMethod "http://127.0.0.1:8798/api/ping" -TimeoutSec 1; break } catch { }
+          }
+          if (-not $info) {
+            if (Test-Path "$data/plancraft.log") { Get-Content "$data/plancraft.log" }
+            throw "The frozen app did not answer /api/ping."
+          }
+          if ($info.version -ne $env:VERSION) { throw "Version mismatch: app reports $($info.version), expected $env:VERSION" }
+          Write-Host "Frozen app answered: $($info | ConvertTo-Json -Compress)"
+          Invoke-RestMethod "http://127.0.0.1:8798/api/quit" -Method Post -Headers @{"X-PlanCraft"="quit"} -ContentType "application/json" -Body "{}" | Out-Null
+
+      - name: Portable zip
+        shell: pwsh
+        run: Compress-Archive -Path "dist/PlanCraft" -DestinationPath "dist/PlanCraft-$env:VERSION-portable.zip" -CompressionLevel Optimal
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = @(
+            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+            "C:\Program Files\Inno Setup 6\ISCC.exe"
+          ) | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) { throw "ISCC.exe not found after installing Inno Setup." }
+          & $iscc "/DAppVersion=$env:VERSION" "packaging/PlanCraft.iss"
+          if (-not (Test-Path "dist/installer/PlanCraft-Setup-$env:VERSION.exe")) { throw "Installer was not created." }
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $files = @()
+          $files += Get-ChildItem "dist/installer/*.exe"
+          $files += Get-ChildItem "dist/*-portable.zip"
+          $lines = foreach ($f in $files) {
+            $hash = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($f.Name)"
+          }
+          $lines | Set-Content "dist/SHA256SUMS.txt" -Encoding ascii
+          Get-Content "dist/SHA256SUMS.txt"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlanCraft-${{ env.VERSION }}
+          path: |
+            dist/installer/*.exe
+            dist/*-portable.zip
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: PlanCraft ${{ env.VERSION }}
+          files: |
+            dist/installer/PlanCraft-Setup-${{ env.VERSION }}.exe
+            dist/PlanCraft-${{ env.VERSION }}-portable.zip
+            dist/SHA256SUMS.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true

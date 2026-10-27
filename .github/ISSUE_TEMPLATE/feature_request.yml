@@ -1,0 +1,43 @@
+name: Feature request
+description: Suggest a feature or a quality-of-life improvement
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        PlanCraft is deliberately small, offline and dependency-light. Explain the estimating or takeoff
+        problem first; the implementation is the easy part.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+      description: A real job or workflow, not only the feature name.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should PlanCraft do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you have tried
+      description: PlanSwift, Bluebeam, Excel, manual counting, another app...
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Takeoff and measuring
+        - Auto count
+        - Plans and pages
+        - Revisions and compare
+        - Materials and pricing
+        - Export (Excel, PDF, PlanSwift)
+        - Projects and backups
+        - Install, performance or accessibility
+        - Other
+    validations:
+      required: true

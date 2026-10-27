@@ -3,3 +3,11 @@ data/
 
 __pycache__/
 *.pyc
+
+# Python/build/test output
+.venv/
+build/
+dist/
+.coverage
+htmlcov/
+*.log
