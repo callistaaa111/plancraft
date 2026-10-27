@@ -459,7 +459,8 @@ window.addEventListener('hashchange', route);
 setInterval(() => fetch('/api/ping?beat=1').catch(() => {}), 30000);
 fetch('/api/ping?beat=1').catch(() => {});
 window.addEventListener('pagehide', saveOnClose);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveOnClose(); });
+// minimised, not closed: a normal save, so this window learns the new save time (a beacon's reply is never read)
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave().catch(() => {}); });
 
 // ---- projects, imports, export -----------------------------------------------------------------------
 async function newProject() {

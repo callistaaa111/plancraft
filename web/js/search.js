@@ -1,5 +1,5 @@
 // Search the open project: page names, items, notes and PDF text.
-import { S } from './store.js';
+import { S, flushSave } from './store.js';
 import * as api from './api.js';
 import { h, debounce } from './util.js';
 import { modal, toast, progressBox } from './dialogs.js';
@@ -54,6 +54,7 @@ export function openProjectSearch() {
         h('button', { class: 'btn small', type: 'button', onclick: async () => {
           const prog = progressBox('OCR scanned pages');
           try {
+            await flushSave();         // OCR saves the project when it ends: a save still pending would make that a conflict
             const { task } = await api.ocrProject(S.project.id);
             const r = await api.waitTask(task, t => prog.set(t.total ? t.done / t.total : null, t.message));
             prog.close();
