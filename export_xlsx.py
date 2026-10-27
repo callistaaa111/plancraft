@@ -218,10 +218,13 @@ def build(project: dict) -> bytes:
         r0 = r
         rows_ = [("Subtotal", f"=SUM(F5:F{last})"),
                  (f"Overhead {cost['overhead']:g}%", f"=F{r0}*{cost['overhead'] / 100:g}"),
-                 (f"Contingency {cost['contingency']:g}%", f"=(F{r0}+F{r0 + 1})*{cost['contingency'] / 100:g}"),
-                 (f"Markup {cost['markup']:g}%", f"=(F{r0}+F{r0 + 1}+F{r0 + 2})*{cost['markup'] / 100:g}"),
-                 (f"Tax {cost['tax']:g}%", f"=(F{r0}+F{r0 + 1}+F{r0 + 2}+F{r0 + 3})*{cost['tax'] / 100:g}"),
-                 ("TOTAL", f"=SUM(F{r0}:F{r0 + 4})")]
+                 (f"Contingency {cost['contingency']:g}%", f"=(F{r0}+F{r0 + 1})*{cost['contingency'] / 100:g}")]
+        rows_ += [(e["label"], f"=F{r0}*{e['value'] / 100:g}" if e["type"] == "pct" else f"={e['value']:g}")
+                  for e in cost["extras"]]
+        end = r0 + len(rows_) - 1                       # last row before markup
+        rows_ += [(f"Markup {cost['markup']:g}%", f"=SUM(F{r0}:F{end})*{cost['markup'] / 100:g}"),
+                  (f"Tax {cost['tax']:g}%", f"=SUM(F{r0}:F{end + 1})*{cost['tax'] / 100:g}"),
+                  ("TOTAL", f"=SUM(F{r0}:F{end + 2})")]
         for i, (label, f) in enumerate(rows_):
             wb_.cell(r + i, 5, label).font = BOLD
             c = formula(wb_, r + i, 6, f)
@@ -235,6 +238,7 @@ def build(project: dict) -> bytes:
             ("Materials", cost["materials"]), ("Labour", cost["labour"]), ("Subtotal", cost["subtotal"]),
             (f"Overhead {cost['overhead']:g}%", cost["overheadAmount"]),
             (f"Contingency {cost['contingency']:g}%", cost["contingencyAmount"]),
+            *((e["label"], e["amount"]) for e in cost["extras"]),
             (f"Markup {cost['markup']:g}%", cost["markupAmount"]),
             (f"Tax {cost['tax']:g}%", cost["taxAmount"]),
             ("TOTAL", cost["total"]),
