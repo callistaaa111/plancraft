@@ -8,8 +8,16 @@ updates:
     groups:
       python:
         patterns: ["*"]
+    ignore:
+      # 2.x pulls the optional layout/LLM stack (onnxruntime, ~250 MB) that PlanCraft does not use.
+      # Stay on the 1.x ABI build; review this deliberately before ever allowing a major bump.
+      - dependency-name: "pymupdf"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
