@@ -48,6 +48,7 @@ const P = {
   highlight: '<path d="M9 15l-4 5h5l2-2"/><path d="M9 15l7-11 4 3-7 11z"/>',
   compare: '<rect x="3" y="3" width="12" height="12" rx="1"/><rect x="9" y="9" width="12" height="12" rx="1"/>',
   search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-4.4-4.4"/>',
+  theme: '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16z"/>',
   align: '<circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
   marks: '<path d="M4 4h16v12H8l-4 4z"/><path d="M8 9h8"/>',
   tag: '<path d="M3 12V4h8l10 10-8 8z"/><circle cx="7.5" cy="8.5" r="1.5"/>',

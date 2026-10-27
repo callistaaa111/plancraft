@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(SPECPATH).resolve().parent
 CONSOLE = os.environ.get("PLANCRAFT_CONSOLE") == "1"
-APP_NAME = "PlanCraftDebug" if CONSOLE else "PlanCraft"
+APP_NAME = os.environ.get("PLANCRAFT_APP_NAME") or ("PlanCraftDebug" if CONSOLE else "PlanCraft")
 VERSION_TEXT = (ROOT / "version.py").read_text(encoding="utf-8")
 VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', VERSION_TEXT).group(1)
 VER = tuple(int(part) for part in VERSION.split(".")) + (0, 0, 0)
@@ -70,11 +70,19 @@ hiddenimports = [
     "tasks",
     "vision",
     "version",
-    "printpdf",
+    "archive",
+    "compare",
+    "export_csv",
     "export_xlsx",
     "export_swiftjob",
+    "ocr",
     "pricelist",
     "pricing",
+    "printpdf",
+    "quote",
+    "search",
+    "symbols",
+    "templates",
 ]
 
 a = Analysis(

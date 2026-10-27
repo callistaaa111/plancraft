@@ -23,6 +23,7 @@
     <button class="btn" id="btnMaterials" title="Price list and assemblies (bill of materials)"></button>
     <button class="btn" id="btnPrint" title="Print or export the plans as PDF (Ctrl+P)"></button>
     <button class="btn primary" id="btnExport" title="Export: Excel summary, PlanSwift job or PDF" aria-haspopup="menu"></button>
+    <button class="btn ghost icon-only" id="btnTheme" title="Switch light / dark theme"></button>
     <button class="btn ghost icon-only" id="btnSearch" title="Search the project (Ctrl+Shift+F)"></button>
     <button class="btn ghost icon-only" id="btnHelp" title="Keyboard shortcuts (?)"></button>
   </div>
@@ -39,6 +40,7 @@
       <div class="home-actions">
         <button class="btn" id="btnImportJob"></button>
         <button class="btn" id="btnImportArchive"></button>
+        <button class="btn" id="btnNewFromTemplate"></button>
         <button class="btn" id="btnNewFromPdf"></button>
         <button class="btn primary" id="btnNewProject"></button>
       </div>
@@ -46,6 +48,8 @@
     <div class="home-tools" id="homeTools" hidden>
       <input type="search" id="projectSearch" placeholder="Search projects" aria-label="Search projects" autocomplete="off">
       <span class="muted" id="projectCount"></span>
+      <span class="spacer"></span>
+      <button class="btn ghost small" id="btnStorage" title="Data folder, backups and trash">Storage</button>
     </div>
     <div id="projectList" class="project-list"></div>
     <p class="drop-hint muted">Tip: drop a .SwiftJob or PDF anywhere on this page.</p>
@@ -57,6 +61,7 @@
     <section class="panel pages-panel" id="pagesPanel">
       <div class="panel-head">
         <h2>Pages <span class="count" id="pageCount"></span></h2>
+        <button class="btn ghost small icon-only" id="btnManagePages" title="Manage pages and scales"></button>
         <button class="btn ghost small icon-only" id="btnAddPages" title="Add plans"></button>
       </div>
       <div class="panel-tools">
@@ -76,6 +81,7 @@
       <div class="panel-tools">
         <input type="search" id="treeFilter" placeholder="Search items" aria-label="Search items">
         <button class="btn small icon-only" data-new="folder" title="New folder"></button>
+        <button class="btn small icon-only" id="btnBulk" title="Bulk edit selected items"></button>
       </div>
       <div class="list tree" id="tree" tabindex="0" role="tree" aria-label="Takeoff items"></div>
     </section>

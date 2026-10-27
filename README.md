@@ -16,14 +16,14 @@ Excel or a PlanSwift job. It also opens your existing `.SwiftJob` files, includi
 
 ## Download and install
 
-1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.0.0.exe`).
+1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.1.0.exe`).
 2. Run it. It installs for the current Windows user, so it does **not** need administrator rights.
 3. Start **PlanCraft** from the Desktop or Start menu. It opens in its own window; closing the window stops the
    server about 10 minutes later.
 
 Your projects live in `%LOCALAPPDATA%\PlanCraft\data` and are kept when you update or uninstall.
 
-**Portable:** download `PlanCraft-1.0.0-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
+**Portable:** download `PlanCraft-1.1.0-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
 `portable.txt` next to the executable to keep the projects in a `data` folder beside it.
 
 **From source** (Python 3.10+):
@@ -63,9 +63,13 @@ already installed; it adds the same shortcuts.
 | Images | PNG, JPG, TIFF (multi-page too), BMP, GIF and WebP. |
 
 - **Crop** (C) an area into a new page, rotate a page, or copy/paste a page within or between projects.
+- **Manage pages** (the panel button): rename, group, reorder, and tick several pages to apply a standard scale at
+  once.
 - **Search items** to jump to an item's page and zoom to its takeoff.
 - **Search project** (Ctrl+Shift+F) searches page names, items, notes and the text layer of PDF pages, then jumps to
-  the page.
+  the page. If Tesseract is installed, **OCR scanned pages** makes image-only plans searchable too.
+- **Project templates:** save a project's price list, assemblies, folder/item skeleton and settings, then start a new
+  job from it (pages and takeoff are never copied).
 - Scale, units and allowances are per page or per item, with metric and imperial units.
 
 ### Takeoff
@@ -74,7 +78,9 @@ already installed; it adds the same shortcuts.
 - **Deduct** makes the next area a cut-out; **Ortho** (or Shift) constrains runs; **Snap** catches existing points.
 - **Select** (V) edits points, Alt+click removes one, double-click a line adds one, Del deletes; Ctrl+Z / Ctrl+Y.
 - Count items can be **box-selected** on the plan and deleted in one go. **Focus** (G) fades the rest of the takeoff.
-- **P** hides the properties panel. **?** shows every shortcut.
+- **Bulk edit** several items at once (colour, unit, allowance, assembly, visibility). Each item can also carry a
+  **manual adjustment** with a reason, and a **Flag for review** marker.
+- **P** hides the properties panel. **?** shows every shortcut. **Ctrl+K** opens the command palette.
 
 ### Auto count
 
@@ -82,6 +88,8 @@ Select a count item, press **Auto count** (A), zoom to the area and drag a box t
 PlanCraft finds look-alikes (only in the visible part of the page by default), shows green/grey/red circles, and adds
 the ones you keep. **Symbol shape** compares a whole symbol; **Dots on wires** finds lights drawn as filled dots on a
 circuit wire. The **Match strength** slider trades recall for precision. Always review the circles before adding.
+**Save symbol** stores the boxed symbol in the project; **Symbols...** can run it across selected pages and add the
+reviewed matches to a count item.
 
 ### Compare revisions
 
@@ -110,7 +118,8 @@ price list and updates matching materials.
 
 Tick **Labour** on a price-list row to treat it as a labour rate (for example an electrician hour). The **Quote** tab
 adds overhead, contingency, markup and VAT/tax percentages and shows the full build-up: materials, labour, subtotal,
-overhead, contingency, markup, tax and total.
+overhead, contingency, markup, tax and total. **Download proposal PDF** turns the build-up into a client-facing
+one-page proposal with your company, client, project address, validity and terms.
 
 ### Print and PDF
 
@@ -124,6 +133,7 @@ or open it to print. **Smaller file** uses JPEG for image pages.
   Pages.
 - **PlanSwift job (.SwiftJob):** every page as a TIFF with its scale, and the takeoff folders, items, colours,
   heights and points. Deduct areas become a separate "... (deduct)" item because PlanSwift has no cut-out flag.
+- **CSV summary:** the same item, quantity and allowance columns, for a quick import elsewhere.
 - **Print / PDF:** as above.
 
 ## Saving, backups and recovery
@@ -131,7 +141,9 @@ or open it to print. **Smaller file** uses JPEG for image pages.
 There is no Save button. Every change is saved about a second later, and the browser keeps a copy immediately; if
 PlanCraft or the PC goes down before a change reaches disk, the next open offers to recover it. A backup is kept every
 10 minutes (the last 30) and can be restored from **Backups...**; the version you replace is kept as a backup too.
-Deleted projects go to `data/trash`.
+Deleted projects go to `data/trash`. **Storage** on the Projects screen shows the data folder, project, template
+and trash sizes, and lets you empty the trash. **Duplicate project** copies the plan set and takeoff into a new project;
+**Pin to top** keeps a job at the top of the list.
 
 **Move a project to another PC:** use **Export project archive (.zip)** in a project's **...** menu, then
 **Import archive** on the Projects screen. The archive contains the project, its page images and source PDFs, and
@@ -148,7 +160,7 @@ python -m venv .venv
 python -m pip install -r requirements-dev.txt
 
 python server.py --open                              # run from source
-python -m unittest discover -s tests -v              # 46 tests
+python -m unittest discover -s tests -v              # 51 tests
 ruff check .                                         # lint
 python -m coverage run -m unittest discover -s tests
 python -m coverage report -m
@@ -170,6 +182,11 @@ store.py           one folder per project, atomic saves, backups, trash
 archive.py         portable .plancraft.zip export/import
 compare.py         revision matching and quantity deltas
 search.py          page/item/note/PDF-text search
+templates.py       project templates (prices, assemblies, folders, settings)
+quote.py           client proposal PDF
+ocr.py             optional Tesseract OCR for scans
+symbols.py         saved symbols and batch matching
+export_csv.py      CSV summary export
 importers.py       PDF/image/SwiftJob import, crop/rotate/copy pages
 measure.py         quantities from points and page scale
 vision.py          auto count and revision tinting (OpenCV)
@@ -180,7 +197,7 @@ pricelist.py       supplier price-list reader
 pricing.py         materials, assemblies and costing
 tasks.py           background import/export jobs
 web/               plain ES modules + canvas UI, no bundler
-tests/             46 unittest cases (quantities, imports, exports, API, security)
+tests/             51 unittest cases (quantities, imports, exports, API, security)
 packaging/         PyInstaller spec and Inno Setup script
 scripts/build.ps1  local release build
 scripts/privacy_scan.py  blocks client documents, secrets and PII in CI
