@@ -8,11 +8,14 @@ updates:
     groups:
       python:
         patterns: ["*"]
+        # Majors come as their own PRs so one breaking bump cannot hide inside the group.
+        update-types: ["minor", "patch"]
     ignore:
       # 2.x pulls the optional layout/LLM stack (onnxruntime, ~250 MB) that PlanCraft does not use.
       # Stay on the 1.x ABI build; review this deliberately before ever allowing a major bump.
+      # An explicit version range: the semver-major rule alone let #11 widen the pin to >=2.0.
       - dependency-name: "pymupdf"
-        update-types: ["version-update:semver-major"]
+        versions: [">=2"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
