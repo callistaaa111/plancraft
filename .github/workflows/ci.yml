@@ -50,6 +50,7 @@ jobs:
           python-version: "3.12"
       - run: pip install ruff
       - run: ruff check .
+      - run: python scripts/check_js_imports.py
 
   privacy:
     name: no client documents or secrets
