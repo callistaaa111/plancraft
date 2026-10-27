@@ -5,13 +5,13 @@ import {
 } from './store.js';
 import * as api from './api.js';
 import * as M from './measure.js';
-import { $, $$, h, isTyping, download, pickFiles, clamp } from './util.js';
+import { $, $$, h, isTyping, download, pickFiles, clamp, applyUiScale as setUiScale, savedUiScale } from './util.js';
 import { icon } from './icons.js';
 import { modal, progressBox, toast, promptText, openMenu, closeMenu } from './dialogs.js';
 import { Viewer } from './viewer.js';
 import { initTree, addNode } from './tree.js';
 import { initPages, openPage } from './pages.js';
-import { initProps } from './props.js';
+import { initProps, openProjectSettings } from './props.js';
 import { initHome, renderHome, openAbout } from './home.js';
 import { scaleDialog, calibrateDialog, confirmAutoScale } from './scale.js';
 import { cropToNewPage, copyPage, pastePage } from './pageops.js';
@@ -54,11 +54,20 @@ for (const [id, [ic, label, key]] of Object.entries(TOGGLES)) {
 }
 $('#btnCompare').innerHTML = `${icon('compare')}<span class="lbl">Compare</span>`;
 $('#btnCompare').addEventListener('click', () => compare.toggle());
+// More: notes, highlighter and compare in a pop-out; the button lights up while one of them is on
+$('#btnMore').innerHTML = `${icon('more')}<span class="lbl">More</span>${icon('caret')}`;
+const showMore = open => { $('#morePop').hidden = !open; $('#btnMore').setAttribute('aria-expanded', String(open)); };
+$('#btnMore').addEventListener('click', () => showMore($('#morePop').hidden));
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.tool-more')) showMore(false); });
+$('#morePop').addEventListener('click', e => { if (e.target.closest('[data-tool]')) showMore(false); });
+new MutationObserver(() => $('#btnMore').classList.toggle('on', !!$('#morePop .on:not(#tgMarks)')))
+  .observe($('#morePop'), { subtree: true, attributeFilter: ['class'] });
 $('#markColor').addEventListener('input', e => { S.markColor = e.target.value; });
 const setBtn = (sel, ic, label) => { $(sel).innerHTML = `${icon(ic)}${label ? `<span class="lbl">${label}</span>` : ''}`; };
 setBtn('#btnUndo', 'undo', '');
 setBtn('#btnRedo', 'redo', '');
 setBtn('#btnAddPlans', 'upload', 'Add plans');
+setBtn('#btnProject', 'job', 'Project');
 setBtn('#btnMaterials', 'tag', 'Materials');
 $('#btnExport').innerHTML = `${icon('download')}<span class="lbl">Export</span>${icon('caret')}`;
 setBtn('#btnPrint', 'printer', 'Print / PDF');
@@ -88,6 +97,7 @@ for (const b of $$('[data-new]')) {
 $('#btnUndo').onclick = () => undo();
 $('#btnRedo').onclick = () => redo();
 $('#btnAddPlans').onclick = () => addPlans();
+$('#btnProject').onclick = () => openProjectSettings();
 $('#btnMaterials').onclick = () => openMaterials();
 $('#btnAddPages').onclick = () => addPlans();
 $('#btnManagePages').onclick = () => openPageManager();
@@ -97,6 +107,7 @@ $('#btnExport').onclick = () => {
   openMenu(r.left, r.bottom + 4, [
     { label: 'Excel summary (.xlsx)', icon: 'excel', action: () => exportExcel() },
     { label: 'CSV summary (.csv)', icon: 'excel', action: () => download(api.csvUrl(S.project.id)) },
+    { label: 'Proposal PDF (quote)', icon: 'pdf', action: () => exportQuote() },
     { label: 'PlanSwift job (.SwiftJob)', icon: 'job', action: () => exportSwiftJob(S.project?.id) },
     { label: 'PDF of the plans...', icon: 'printer', kbd: 'Ctrl+P', action: () => printPlans() },
   ]);
@@ -129,14 +140,10 @@ $('#btnTheme').onclick = () => {
   applyTheme(current === 'dark' ? 'light' : 'dark');
 };
 const applyUiScale = z => {
-  document.documentElement.style.zoom = z;
-  try { localStorage.setItem('plancraft.uiscale', String(z)); } catch { /* storage unavailable */ }
+  setUiScale(z);
   requestAnimationFrame(() => viewer.resize());
 };
-try {
-  const zoom = Number(localStorage.getItem('plancraft.uiscale'));
-  if (zoom >= 0.8 && zoom <= 1.5) applyUiScale(zoom);
-} catch { /* storage unavailable */ }
+if (savedUiScale() !== 1) applyUiScale(savedUiScale());
 $('#btnPrevPage').onclick = () => stepPage(-1);
 $('#btnNextPage').onclick = () => stepPage(1);
 $('#btnZoomIn').onclick = () => viewer.zoomAt(1.25);
@@ -350,6 +357,7 @@ initProps($('#props'), {
   calibrate: startCalibrate,
   measure: startMeasure,
   crop: () => chooseTool('crop'),
+  close: () => { if (S.showProps) toggle('showProps'); },
   reveal: sec => viewer.reveal(sec),
 });
 initHome($('#projectList'), { exportProject: id => download(api.exportUrl(id)), exportSwiftJob: id => exportSwiftJob(id) });
@@ -602,6 +610,14 @@ async function exportExcel() {
   } catch (err) { toast(`Export failed: ${err.message}`, 'error'); }
 }
 
+async function exportQuote() {
+  if (!S.project) return;
+  try {
+    await flushSave();
+    download(api.quoteUrl(S.project.id));
+  } catch (err) { toast(`Proposal PDF failed: ${err.message}`, 'error'); }
+}
+
 /** Save a project as a PlanSwift job that opens in PlanSwift: pages, folders and takeoff with its points. */
 async function exportSwiftJob(pid) {
   if (!pid) return;
@@ -654,7 +670,9 @@ function projectCommands() {
     { label: 'Set scale on this page', hint: 'Scale', action: () => scaleDialog(S.pageId, { onCalibrate: startCalibrate }) },
     { label: 'Manage pages and scales', hint: 'Pages', action: () => openPageManager() },
     { label: 'Bulk edit items', hint: 'Takeoff', action: () => openBulkEdit() },
+    { label: 'Project settings', hint: 'Units, currency, allowances', action: () => openProjectSettings() },
     { label: 'Materials, assemblies and quote', hint: 'Estimating', action: () => openMaterials() },
+    { label: 'Download proposal PDF', hint: 'Export', action: () => exportQuote() },
     { label: 'Export Excel summary', hint: 'Export', action: () => exportExcel() },
     { label: 'Print / PDF', hint: 'Ctrl+P', action: () => printPlans() },
     { label: 'Search project', hint: 'Ctrl+Shift+F', action: () => openProjectSearch() },

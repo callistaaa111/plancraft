@@ -21,6 +21,14 @@ const FADE_OTHERS = 0.45;
 const CACHE_PAGES = 3;
 
 const r2 = v => Math.round(v * 100) / 100;
+/** Pale colours (yellow, lime, pastels) get a dark edge instead of a white one, so they still show on white paper. */
+const isPale = c => {
+  const m = /^#([0-9a-f]{6})$/i.exec(c || '');
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  return (0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) > 130;   // catches everything under 3:1 on white in PALETTE
+};
+const PALE_EDGE = 'rgba(17, 17, 17, .6)';
 
 function distToSeg(p, a, b) {
   const dx = b[0] - a[0], dy = b[1] - a[1];
@@ -346,7 +354,7 @@ export class Viewer {
       ctx.restore();
     }
     const grow = this.pulse();
-    for (const [it, sec] of later) this.drawSection(ctx, it, sec, true, secSel?.secId === sec.id, grow);
+    for (const [it, sec] of later) this.drawSection(ctx, it, sec, true, !!secSel && secSel.secId === sec.id, grow);
     if (S.labels) {
       for (const t of ['area', 'linear']) for (const [it, sec] of vis[t]) this.drawSectionLabel(ctx, it, sec, page);
     }
@@ -406,6 +414,10 @@ export class Viewer {
         ctx.stroke();
         ctx.strokeStyle = HL_EDGE;
         ctx.lineWidth = lw + 2.5;
+        ctx.stroke();
+      } else if (isPale(color)) {
+        ctx.strokeStyle = PALE_EDGE;
+        ctx.lineWidth = lw + 2;
         ctx.stroke();
       }
       ctx.strokeStyle = color;
@@ -479,7 +491,7 @@ export class Viewer {
         break;
       case 'cross':
         ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r);
-        ctx.strokeStyle = emphasise ? HL_EDGE : '#fff'; ctx.lineWidth = r * 0.7 + 3; ctx.stroke();
+        ctx.strokeStyle = emphasise || isPale(color) ? HL_EDGE : '#fff'; ctx.lineWidth = r * 0.7 + 3; ctx.stroke();
         ctx.strokeStyle = color; ctx.lineWidth = r * 0.7; ctx.stroke();
         return;
       default: ctx.arc(x, y, r, 0, Math.PI * 2);
@@ -488,7 +500,7 @@ export class Viewer {
     ctx.fillStyle = color;
     ctx.fill();
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = emphasise ? '#111' : '#fff';
+    ctx.strokeStyle = emphasise ? '#111' : isPale(color) ? PALE_EDGE : '#fff';
     ctx.lineWidth = emphasise ? 2.5 : 1.5;
     ctx.stroke();
   }

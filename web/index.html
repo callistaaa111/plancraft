@@ -20,6 +20,7 @@
     <button class="btn ghost" id="btnRedo" title="Redo (Ctrl+Y)"></button>
     <span class="sep"></span>
     <button class="btn" id="btnAddPlans" title="Add PDF or image plans to this project"></button>
+    <button class="btn" id="btnProject" title="Project settings: units, currency, markup, allowances, backups"></button>
     <button class="btn" id="btnMaterials" title="Price list and assemblies (bill of materials)"></button>
     <button class="btn" id="btnPrint" title="Print or export the plans as PDF (Ctrl+P)"></button>
     <button class="btn primary" id="btnExport" title="Export: Excel summary, PlanSwift job or PDF" aria-haspopup="menu"></button>
@@ -109,16 +110,21 @@
         <button class="toggle" id="tgFocus" title="Focus: fade the other takeoff while an item is selected (G)"></button>
       </div>
       <span class="sep"></span>
-      <div class="tool-group" role="group" aria-label="Markup">
-        <button class="tool" data-tool="note" title="Add a note on the plan (N)"></button>
-        <button class="tool" data-tool="highlight" title="Highlighter (H)"></button>
-        <input type="color" id="markColor" class="mark-color" value="#ffd400" title="Note and highlighter colour" aria-label="Note and highlighter colour">
-        <button class="toggle icon-toggle" id="tgMarks" title="Show or hide notes and highlights"></button>
+      <!-- less used tools live in a pop-out so the toolbar stays on one row -->
+      <div class="tool-more">
+        <button class="tool has-menu" id="btnMore" title="Notes, highlighter and revision compare" aria-haspopup="true" aria-expanded="false" aria-controls="morePop"></button>
+        <div class="tool-pop" id="morePop" hidden>
+          <div class="tool-group" role="group" aria-label="Markup">
+            <button class="tool" data-tool="note" title="Add a note on the plan (N)"></button>
+            <button class="tool" data-tool="highlight" title="Highlighter (H)"></button>
+            <input type="color" id="markColor" class="mark-color" value="#ffd400" title="Note and highlighter colour" aria-label="Note and highlighter colour">
+            <button class="toggle icon-toggle" id="tgMarks" title="Show or hide notes and highlights"></button>
+          </div>
+          <button class="toggle" id="btnCompare" title="Compare this page with another revision"></button>
+        </div>
       </div>
       <div class="spacer"></div>
       <div class="tool-group">
-        <button class="toggle" id="btnCompare" title="Compare this page with another revision"></button>
-        <span class="sep"></span>
         <button class="tool" id="btnPrevPage" title="Previous page (Page Up)"></button>
         <button class="tool" id="btnNextPage" title="Next page (Page Down)"></button>
         <span class="sep"></span>
@@ -144,7 +150,7 @@
   </section>
 
   <div class="vsplit" id="splitRight" title="Drag to resize"></div>
-  <aside class="side right" id="props"></aside>
+  <aside class="side right" id="props" aria-label="Properties"></aside>
 </main>
 
 <div id="menu" class="menu" hidden role="menu"></div>

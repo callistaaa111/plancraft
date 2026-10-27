@@ -1,6 +1,6 @@
 // The projects screen.
 import * as api from './api.js';
-import { h, timeAgo, pickFiles, download } from './util.js';
+import { h, timeAgo, pickFiles, download, applyUiScale, savedUiScale, clamp } from './util.js';
 import { icon } from './icons.js';
 import { modal, openMenu, confirmBox, promptText, toast, progressBox } from './dialogs.js';
 import { openRevisionCompare } from './revisions.js';
@@ -209,6 +209,13 @@ export async function openAbout() {
     body: h('div', { class: 'rev-compare' },
       h('p', { style: { margin: 0 } }, 'Free, offline construction takeoff. MIT licence. Your projects never leave this computer.'),
       h('table', { class: 'pp-table' }, h('tbody', null, rows.map(([k, v]) => h('tr', null, h('td', null, k), h('td', null, h('code', null, v)))))),
+      h('label', { class: 'inline' }, 'Text and button size',
+        h('input', {
+          type: 'number', min: 80, max: 150, step: 5, value: Math.round(savedUiScale() * 100), style: { width: '76px' },
+          'aria-label': 'Text and button size in percent, 80 to 150',
+          // anything typed outside 80-150 is pulled back to the nearest limit (the range savedUiScale accepts)
+          onchange: e => { const pct = clamp(Math.round(Number(e.target.value) || 100), 80, 150); e.target.value = pct; applyUiScale(pct / 100); },
+        }), '%', h('span', { class: 'hint' }, '(80 to 150)')),
       h('div', { class: 'btn-row' },
         h('button', { class: 'btn', type: 'button', onclick: async () => {
           try { await navigator.clipboard.writeText(text); toast('Diagnostics copied. Paste them into your bug report.'); }

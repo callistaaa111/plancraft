@@ -35,7 +35,8 @@ def create(store) -> dict:
 
     def item(iid, kind, name, color, sections, **props):
         return {"id": iid, "kind": "item", "type": kind, "name": name, "color": color, "visible": True,
-                "props": {"allowance": 0, **props}, "sections": [{"page": page["id"], "points": p} for p in sections]}
+                "props": {"allowance": 0, **props}, "sections": [{"id": f"{iid}-s{i}", "page": page["id"], "points": p}
+                                                                for i, p in enumerate(sections)]}
 
     p["pages"] = [page]
     p["tree"] = [
@@ -45,7 +46,7 @@ def create(store) -> dict:
             item("demo-outlet", "count", "DUPLEX OUTLET", "#2e86de",
                  [[[x, y]] for x, y in ((120, 70), (300, 70), (700, 70), (1000, 70), (120, 760), (500, 760), (900, 760))]),
         ]},
-        {"id": "demo-light", "kind": "folder", "name": "LIGHTING", "open": True, "children": [
+        {"id": "demo-light", "kind": "folder", "name": "LIGHTING", "open": True, "assembly": "demo-a", "children": [
             item("demo-down", "count", "LED DOWNLIGHT", "#f1c40f",
                  [[[x, y]] for x, y in ((150, 150), (260, 150), (600, 150), (710, 150), (900, 150), (1010, 150),
                                         (150, 520), (300, 520), (500, 520), (650, 520), (850, 520), (1000, 520))]),
@@ -62,11 +63,12 @@ def create(store) -> dict:
         {"id": "demo-labour", "name": "Electrician", "unit": "hr", "price": 800, "category": "Labour", "kind": "labour", "whole": False},
     ]
     p["assemblies"] = [
-        {"id": "demo-a", "name": "Lighting circuit", "parts": [
-            {"id": "p1", "material": "demo-wire", "factor": 2, "basis": "qtyAllow", "pack": 1},
-            {"id": "p2", "material": "demo-conduit", "factor": 1, "basis": "qtyAllow", "pack": 3},
-            {"id": "p3", "material": "demo-light", "factor": 1, "basis": "each", "pack": 1},
-            {"id": "p4", "material": "demo-labour", "factor": 0.25, "basis": "each", "pack": 1},
+        # per downlight: the fixture, a 6 m wire drop, 3 m of conduit (3 m lengths) and half an hour of labour
+        {"id": "demo-a", "name": "Downlight, installed", "parts": [
+            {"id": "p1", "material": "demo-light", "factor": 1, "basis": "qty", "pack": 1},
+            {"id": "p2", "material": "demo-wire", "factor": 6, "basis": "qty", "pack": 1},
+            {"id": "p3", "material": "demo-conduit", "factor": 3, "basis": "qty", "pack": 3},
+            {"id": "p4", "material": "demo-labour", "factor": 0.5, "basis": "qty", "pack": 1},
         ]},
     ]
     p["settings"] = {"currency": "₱", "markup": 12, "overhead": 8, "contingency": 3, "tax": 12,

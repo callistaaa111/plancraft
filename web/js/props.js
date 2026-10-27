@@ -11,10 +11,10 @@ import { deletePage, renamePage } from './pages.js';
 import { copyPage, pastePage, hasClip, rotatePage } from './pageops.js';
 import { openMaterials } from './materials.js';
 import { assemblyFor, itemParts, costing, money } from './pricing.js';
-import { toast } from './dialogs.js';
+import { toast, modal } from './dialogs.js';
 
 let el = null;
-let A = {};               // actions from main: exportExcel, calibrate, reveal(sec)
+let A = {};               // actions from main: exportExcel, calibrate, reveal(sec), close()
 const TYPE_NAME = { linear: 'Linear item', area: 'Area item', count: 'Count item' };
 const SHAPES = ['circle', 'square', 'triangle', 'diamond', 'star', 'cross'];
 
@@ -183,7 +183,8 @@ export function render() {
   if (node?.kind === 'item') body = itemPanel(node);
   else if (node?.kind === 'folder') body = folderPanel(node);
   else body = pagePanel();
-  el.replaceChildren(body);
+  el.replaceChildren(h('button', { class: 'btn ghost small icon-only props-close', type: 'button', title: 'Hide properties (P)',
+    'aria-label': 'Hide properties', html: icon('x'), onclick: () => A.close?.() }), body);
   if (S.draftQty) showDraft(S.draftQty);   // keep a running total across redraws
 }
 
@@ -383,8 +384,14 @@ function pagePanel() {
         h('button', { class: 'btn small danger', onclick: () => deletePage(page.id), html: `${icon('trash')}<span>Delete page</span>` })),
       h('hr', { style: { border: 0, borderTop: '1px solid var(--border)', margin: '6px 0', width: '100%' } }));
   }
-  parts.push(projectPanel());
+  parts.push(h('button', { class: 'btn small', onclick: () => openProjectSettings(), html: `${icon('job')}<span>Project settings...</span>` }));
   return h('div', { class: 'props' }, parts);
+}
+
+/** Job-wide settings (units, money, allowances, backups) in their own window, so they don't sit beside the plan. */
+export async function openProjectSettings() {
+  if (!S.project) return;
+  await modal({ title: 'Project settings', body: projectPanel(), enterSubmits: false, buttons: [{ label: 'Done', value: true, primary: true }] });
 }
 
 function projectPanel() {
@@ -400,7 +407,7 @@ function projectPanel() {
     }),
   }, M.UNIT_KEYS.map(k => h('option', { value: k, selected: M.unitKey(p.units) === k }, M.unitLabel(k))));
   return h('div', { class: 'props', style: { padding: 0 } },
-    head('Project', 'job', p.name),
+    h('div', { class: 'title' }, p.name),
     h('div', { class: 'stat-grid' },
       h('span', null, 'Pages'), h('span', null, String(p.pages.length)),
       h('span', null, 'Items'), h('span', null, String(x.items.length)),
@@ -418,7 +425,7 @@ function projectPanel() {
         h('div', null, h('div', { class: 'hint' }, 'Linear'), allowInput('linear')),
         h('div', null, h('div', { class: 'hint' }, 'Area'), allowInput('area')),
         h('div', null, h('div', { class: 'hint' }, 'Count'), allowInput('count')))),
-    h('button', { class: 'btn primary', onclick: () => A.exportExcel?.(), html: `${icon('excel')}<span>Export to Excel</span>` }),
+    h('button', { class: 'btn', onclick: () => A.exportExcel?.(), html: `${icon('excel')}<span>Export to Excel</span>` }),
     h('button', { class: 'btn small', onclick: () => A.backups?.(), title: 'Earlier versions of this project, saved automatically', html: `${icon('undo')}<span>Backups...</span>` }),
     h('p', { class: 'note', style: { margin: 0 } }, 'The workbook has a summary of every item, quantities by page, a PANEL circuit sheet (for items named like PANEL-1), the bill of materials with costs, and the page scales.'));
 }
