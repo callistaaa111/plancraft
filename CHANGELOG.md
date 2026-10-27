@@ -3,6 +3,17 @@
 All notable changes to PlanCraft. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.1.2] - 2026-10-27
+
+### Added
+
+- **Page thumbnails** in the Pages list, generated on demand and cached in the project cache folder.
+- **UI scaling** commands in the Ctrl+K palette (90%, 100%, 110%, 125%), remembered in the browser.
+
+### Changed
+
+- Version 1.1.2.
+
 ## [1.1.1] - 2026-10-27
 
 ### Added

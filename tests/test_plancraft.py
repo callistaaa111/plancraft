@@ -740,6 +740,10 @@ class QolTests(unittest.TestCase):
             self.assertEqual(copy["pages"][0]["image"], "pg.png")
             self.assertTrue((store.pages_dir(copy["id"]) / "pg.png").is_file())
 
+            thumb = store.page_thumbnail(copy["id"], "pg.png")
+            self.assertTrue(thumb.is_file())
+            self.assertEqual(thumb.suffix, ".jpg")
+
             data = export_csv.build(copy)
             self.assertIn(b"Folder,Item,Type", data)
             self.assertIn(b"OUTLET", data)

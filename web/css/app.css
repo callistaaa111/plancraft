@@ -476,3 +476,6 @@ kbd { font: 11.5px var(--font); padding: 1px 5px; border: 1px solid var(--border
   text-align: left; padding: 7px 9px; border: 1px solid transparent; border-radius: 5px; background: none; color: var(--text); cursor: pointer; }
 .palette-item.on, .palette-item:hover { background: var(--hover); border-color: var(--border); }
 .palette-item .hint { margin: 0; white-space: nowrap; }
+
+.page-row { height: 36px; }
+.page-thumb { width: 34px; height: 24px; object-fit: cover; border: 1px solid var(--border); border-radius: 3px; background: #fff; flex: none; }

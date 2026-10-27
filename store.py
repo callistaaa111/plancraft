@@ -267,6 +267,27 @@ class Store:
                     old.unlink(missing_ok=True)
         return thumb
 
+    def page_thumbnail(self, pid: str, image: str) -> Path:
+        """Small JPEG for the page list, cached in the project's cache folder."""
+        src = self.image_path(pid, image)
+        if not src.is_file():
+            raise KeyError(image)
+        d = self.cache_dir(pid)
+        d.mkdir(parents=True, exist_ok=True)
+        out = d / f"thumb-{src.stem}.jpg"
+        if out.is_file() and out.stat().st_mtime >= src.stat().st_mtime:
+            return out
+        from PIL import Image
+        Image.MAX_IMAGE_PIXELS = 400_000_000
+        with Image.open(src) as im:
+            im.draft("RGB", (320, 240))
+            im = im.convert("RGB")
+            im.thumbnail((180, 140))
+            tmp = out.with_suffix(".tmp")
+            im.save(tmp, "JPEG", quality=75)
+            os.replace(tmp, out)
+        return out
+
     def prune_images(self, pid: str, project: dict) -> int:
         """Remove page images no page refers to (left by deleted pages or unfinished imports)."""
         used = {p.get("image") for p in project.get("pages") or []}
