@@ -84,7 +84,26 @@ def costing(project: dict) -> dict:
         bom.append({"material": mat, "raw": raw, "qty": qty, "amount": qty * num(mat.get("price"))})
     order = {m["id"]: i for i, m in enumerate(project.get("materials") or [])}
     bom.sort(key=lambda b: ((b["material"].get("category") or "").lower(), order.get(b["material"]["id"], 0)))
-    subtotal = sum(b["amount"] for b in bom)
-    markup = num((project.get("settings") or {}).get("markup"))
-    return {"lines": lines, "bom": bom, "subtotal": subtotal, "markup": markup,
-            "total": subtotal * (1 + markup / 100)}
+    settings = project.get("settings") or {}
+    materials_subtotal = sum(b["amount"] for b in bom if (b["material"].get("kind") or "material") != "labour")
+    labour_subtotal = sum(b["amount"] for b in bom if (b["material"].get("kind") or "material") == "labour")
+    subtotal = materials_subtotal + labour_subtotal
+    overhead_pct = num(settings.get("overhead"))
+    contingency_pct = num(settings.get("contingency"))
+    markup_pct = num(settings.get("markup"))
+    tax_pct = num(settings.get("tax"))
+    overhead = subtotal * overhead_pct / 100
+    contingency = (subtotal + overhead) * contingency_pct / 100
+    before_markup = subtotal + overhead + contingency
+    markup = before_markup * markup_pct / 100
+    before_tax = before_markup + markup
+    tax = before_tax * tax_pct / 100
+    return {
+        "lines": lines, "bom": bom,
+        "materials": materials_subtotal, "labour": labour_subtotal, "subtotal": subtotal,
+        "overhead": overhead_pct, "overheadAmount": overhead,
+        "contingency": contingency_pct, "contingencyAmount": contingency,
+        "markup": markup_pct, "markupAmount": markup,
+        "tax": tax_pct, "taxAmount": tax,
+        "total": before_tax + tax,
+    }

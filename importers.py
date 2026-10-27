@@ -160,7 +160,8 @@ def import_pdf(task, pdf_path: str | Path, out_dir: Path, filename: str, dpi: fl
                 text = ""
             pages.append({"id": pid, "name": name, "image": f"{pid}.png", "width": pix.width, "height": pix.height,
                           "dpi": round(eff, 3), "scale": detect_scale(text, eff), "source": filename,
-                          "sourcePage": i + 1, **({"src": {"file": kept, "page": i}} if kept else {})})
+                          "sourcePage": i + 1, "text": text[:20000] if text else None,
+                          **({"src": {"file": kept, "page": i}} if kept else {})})
             pix = None
         task.progress(len(idx), len(idx), "Done")
         return {"pages": pages}

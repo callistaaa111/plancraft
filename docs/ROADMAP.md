@@ -11,6 +11,23 @@ Effort below is in **focused build days** for one developer who knows the codeba
 code signing, waiting on CI, or a beta with real estimators. A coding agent can compress the build part into hours;
 the calendar time is still dominated by review and real-plan testing, which is where quantity bugs are found.
 
+## Status at 1.0.0
+
+Some of this landed earlier than planned, because it was cheap once the core model was in place:
+
+- **v1.1** — project-to-project comparison, page matching by source/sheet name, item quantity deltas and an Excel
+  revision report are in. Still open: automatic page-pair editing, a PDF revision report, and carrying takeoff across
+  revisions from the comparison screen.
+- **v1.2** — labour rates (a price-list Labour flag), overhead/contingency/markup/VAT in the Quote tab, and a Quote
+  sheet in Excel are in. Still open: productivity per trade, a client-facing proposal PDF, CSV takeoff import and
+  specification comparison.
+- **v1.3** — PDF-text search (Ctrl+Shift+F), auto-scale from printed text. Still open: OCR for scans, a symbol
+  library, batch auto-count with one review queue, legend masks and measurement provenance/review status.
+- **v2.0** — portable project archives (export/import) are in. Still open: SQLite/incremental saves, folder backup,
+  optional encryption and the migration runner.
+
+The estimates below describe the remaining work, not the parts already shipped.
+
 ## Principles
 
 1. **Offline first.** No account, no cloud dependency, no telemetry. Sync is opt-in and file-based.

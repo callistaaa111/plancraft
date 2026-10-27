@@ -64,6 +64,8 @@ already installed; it adds the same shortcuts.
 
 - **Crop** (C) an area into a new page, rotate a page, or copy/paste a page within or between projects.
 - **Search items** to jump to an item's page and zoom to its takeoff.
+- **Search project** (Ctrl+Shift+F) searches page names, items, notes and the text layer of PDF pages, then jumps to
+  the page.
 - Scale, units and allowances are per page or per item, with metric and imperial units.
 
 ### Takeoff
@@ -87,6 +89,11 @@ Open a page and press **Compare**, then choose another page. Red is only on this
 is unchanged. **Align** with two point pairs when the sheets do not line up, then **Copy takeoff to the other page**
 to carry the takeoff across a revision. **Swap** reverses the overlay.
 
+For a whole-project revision report, open the **...** menu on a project card and choose **Compare revisions...**.
+Pick the other project: PlanCraft matches pages by source PDF/page and sheet name, then lists every item with its old
+quantity, new quantity, delta and percentage. Added and removed items are called out, and **Export Excel** writes the
+same report as a workbook.
+
 ### Notes and highlighter
 
 **Note** (N) places a text box with a pin; choose font, size, colours and width, or let it grow and shrink with the
@@ -97,9 +104,13 @@ and notes are exported to their own Excel sheet and to the PDF.
 
 Open **Materials** to set up a **price list** (category, unit, price; **Whole** rounds up things sold in whole units)
 and **assemblies** (recipes such as 2 × quantity + allowance of 3.5 mm² wire, plus 1 × quantity ÷ 3 conduit). Assign an
-assembly to an item or a folder; the panel shows materials and cost, and the Excel export gets a **Bill of Materials**
-and **Materials by Item** sheet with live formulas, markup and totals. **Import from Excel / CSV** reads a supplier
+assembly to an item or a folder; the panel shows materials and cost, and the Excel export gets a **Bill of Materials**,
+**Materials by Item** and **Quote** sheet with live formulas and totals. **Import from Excel / CSV** reads a supplier
 price list and updates matching materials.
+
+Tick **Labour** on a price-list row to treat it as a labour rate (for example an electrician hour). The **Quote** tab
+adds overhead, contingency, markup and VAT/tax percentages and shows the full build-up: materials, labour, subtotal,
+overhead, contingency, markup, tax and total.
 
 ### Print and PDF
 
@@ -122,6 +133,10 @@ PlanCraft or the PC goes down before a change reaches disk, the next open offers
 10 minutes (the last 30) and can be restored from **Backups...**; the version you replace is kept as a backup too.
 Deleted projects go to `data/trash`.
 
+**Move a project to another PC:** use **Export project archive (.zip)** in a project's **...** menu, then
+**Import archive** on the Projects screen. The archive contains the project, its page images and source PDFs, and
+importing always creates a new project, so it never overwrites one.
+
 Projects are plain folders under the data directory (`project.json`, page images, backups, sources). They are not
 encrypted; use BitLocker for confidential client plans.
 
@@ -133,7 +148,7 @@ python -m venv .venv
 python -m pip install -r requirements-dev.txt
 
 python server.py --open                              # run from source
-python -m unittest discover -s tests -v              # 38 tests
+python -m unittest discover -s tests -v              # 46 tests
 ruff check .                                         # lint
 python -m coverage run -m unittest discover -s tests
 python -m coverage report -m
@@ -151,6 +166,9 @@ builds the installer and portable zip on a `v*` tag and publishes them to GitHub
 ```
 server.py          local HTTP server, API, static files, launcher
 store.py           one folder per project, atomic saves, backups, trash
+archive.py         portable .plancraft.zip export/import
+compare.py         revision matching and quantity deltas
+search.py          page/item/note/PDF-text search
 importers.py       PDF/image/SwiftJob import, crop/rotate/copy pages
 measure.py         quantities from points and page scale
 vision.py          auto count and revision tinting (OpenCV)
@@ -161,9 +179,10 @@ pricelist.py       supplier price-list reader
 pricing.py         materials, assemblies and costing
 tasks.py           background import/export jobs
 web/               plain ES modules + canvas UI, no bundler
-tests/             38 unittest cases (quantities, imports, exports, API, security)
+tests/             46 unittest cases (quantities, imports, exports, API, security)
 packaging/         PyInstaller spec and Inno Setup script
 scripts/build.ps1  local release build
+scripts/privacy_scan.py  blocks client documents, secrets and PII in CI
 ```
 
 The server listens on `127.0.0.1` only and checks the `Host` header. It has no accounts, telemetry or cloud calls.
@@ -173,7 +192,7 @@ The server listens on `127.0.0.1` only and checks the `Host` header. It has no a
 The next work — revision delta reporting, a labour/quote layer, OCR and text search, and a storage/sync upgrade — is
 sketched in [docs/ROADMAP.md](docs/ROADMAP.md). Performance and security findings live in
 [docs/AUDIT.md](docs/AUDIT.md), and the comparison with other takeoff tools in
-[docs/COMPETITORS.md](docs/COMPETITORS.md).
+[docs/COMPETITORS.md](docs/COMPETITORS.md), and the client-data/privacy check in [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Contributing
 
