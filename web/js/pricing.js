@@ -61,9 +61,25 @@ export function costing(project, x, qtyOf, items = x.items) {
     const qty = material.whole ? Math.ceil(raw - 1e-9) : raw;
     return { material, raw, qty, amount: qty * num(material.price) };
   });
-  const subtotal = bom.reduce((s, b) => s + b.amount, 0);
-  const markup = num(project.settings?.markup);
-  return { bom, subtotal, markup, total: subtotal * (1 + markup / 100) };
+  const settings = project.settings || {};
+  const materialsSubtotal = bom.reduce((s, b) => s + (b.material.kind === 'labour' ? 0 : b.amount), 0);
+  const labourSubtotal = bom.reduce((s, b) => s + (b.material.kind === 'labour' ? b.amount : 0), 0);
+  const subtotal = materialsSubtotal + labourSubtotal;
+  const overheadPct = num(settings.overhead);
+  const contingencyPct = num(settings.contingency);
+  const markupPct = num(settings.markup);
+  const taxPct = num(settings.tax);
+  const overhead = subtotal * overheadPct / 100;
+  const contingency = (subtotal + overhead) * contingencyPct / 100;
+  const beforeMarkup = subtotal + overhead + contingency;
+  const markupAmount = beforeMarkup * markupPct / 100;
+  const beforeTax = beforeMarkup + markupAmount;
+  const tax = beforeTax * taxPct / 100;
+  return {
+    bom, materials: materialsSubtotal, labour: labourSubtotal, subtotal,
+    overhead: overheadPct, overheadAmount: overhead, contingency: contingencyPct, contingencyAmount: contingency,
+    markup: markupPct, markupAmount, tax: taxPct, taxAmount: tax, total: beforeTax + tax,
+  };
 }
 
 export const money = (v, project) => `${project.settings?.currency ?? '₱'}${Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

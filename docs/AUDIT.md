@@ -2,7 +2,7 @@
 
 **Date:** 27 October 2026
 **Scope:** the Python server and storage, the canvas UI, imports/exports, and the packaged Windows build.
-**Method:** code review, the 38-test suite, targeted measurements against the local projects (no client data was
+**Method:** code review, the 46-test suite, targeted measurements against the local projects (no client data was
 changed), and a build/smoke test of the frozen executable. This is a practical audit, not a formal penetration test.
 
 ## Executive summary
@@ -201,7 +201,7 @@ desktop shortcut.
 ## Verification
 
 ~~~powershell
-python -m unittest discover -s tests -v      # 38 tests
+python -m unittest discover -s tests -v      # 46 tests
 ruff check .
 .\venv\Scripts\python.exe -m PyInstaller packaging/PlanCraft.spec --noconfirm --clean
 # smoke test the frozen app: & dist\PlanCraft\PlanCraft.exe --port 8798 --data dist\smoke-data

@@ -1,8 +1,9 @@
 // The projects screen.
 import * as api from './api.js';
-import { h, timeAgo } from './util.js';
+import { h, timeAgo, pickFiles, download } from './util.js';
 import { icon } from './icons.js';
 import { openMenu, confirmBox, promptText, toast } from './dialogs.js';
+import { openRevisionCompare } from './revisions.js';
 
 let el = null;
 let A = {};
@@ -19,6 +20,7 @@ export function initHome(listEl, actions) {
     if (e.key === 'Escape' && box.value) { e.preventDefault(); box.value = ''; showList(); }
     else if (e.key === 'Enter') el.querySelector('.card')?.click();
   });
+  document.getElementById('btnImportArchive')?.addEventListener('click', importArchive);
   // Ctrl+F or / jumps to the search box while the projects screen is showing
   document.addEventListener('keydown', e => {
     if (tools().hidden || tools().closest('[hidden]') || document.querySelector('.modal-back')) return;
@@ -73,6 +75,8 @@ function card(p) {
         { label: 'Rename', icon: 'rename', action: () => rename(p) },
         { label: 'Export to Excel', icon: 'excel', action: () => A.exportProject(p.id) },
         { label: 'Export as PlanSwift job', icon: 'job', action: () => A.exportSwiftJob(p.id) },
+        { label: 'Compare revisions...', icon: 'compare', action: () => openRevisionCompare(p) },
+        { label: 'Export project archive (.zip)', icon: 'download', action: () => download(api.archiveUrl(p.id)) },
         'sep',
         { label: 'Delete project', icon: 'trash', danger: true, action: () => remove(p) },
       ]);
@@ -87,6 +91,16 @@ function card(p) {
     h('div', { class: 'name', title: p.name }, p.name),
     h('div', { class: 'meta' }, `${p.pages} page${p.pages === 1 ? '' : 's'} · ${p.items} item${p.items === 1 ? '' : 's'} · ${timeAgo(p.modified)}`)),
   more);
+}
+
+async function importArchive() {
+  const [file] = await pickFiles('.zip', false);
+  if (!file) return;
+  try {
+    const p = await api.upload(`/api/import/archive?filename=${encodeURIComponent(file.name)}`, file);
+    toast(`Imported "${p.name}".`);
+    renderHome();
+  } catch (err) { toast(err.message, 'error'); }
 }
 
 async function rename(p) {

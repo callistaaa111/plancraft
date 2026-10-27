@@ -35,7 +35,10 @@ else:
     RESOURCE_DIR = APP_DIR
 sys.path.insert(0, str(RESOURCE_DIR))
 
+import archive  # noqa: E402
+import compare  # noqa: E402
 import importers  # noqa: E402
+import search  # noqa: E402
 import tasks  # noqa: E402
 import vision  # noqa: E402
 from store import Conflict, Store  # noqa: E402
@@ -239,6 +242,14 @@ class Api(BaseHTTPRequestHandler):
                                cleanup=lambda: tmp.unlink(missing_ok=True))
             return self.send_json({"task": task.id}, 202)
 
+        if parts == ["import", "archive"] and method == "POST":     # restore a .zip made by Export archive
+            tmp = self.read_to_temp(".zip")
+            try:
+                name = (q.get("name") or "").strip() or None
+                return self.send_json(archive.import_project(st, tmp, name), 201)
+            finally:
+                tmp.unlink(missing_ok=True)
+
         if parts == ["pricelist", "parse"] and method == "POST":     # read a supplier price list
             import pricelist
             filename = q.get("filename") or "prices.xlsx"
@@ -275,6 +286,44 @@ class Api(BaseHTTPRequestHandler):
                 return self.send_json(st.backups(pid))
             if rest == ["restore"] and method == "POST":
                 return self.send_json(st.restore(pid, self.read_json().get("name")))
+            if rest == ["archive"] and method == "GET":
+                data = archive.export_project(st, pid)
+                project = st.load(pid)
+                name = re.sub(r'[\\/:*?"<>|]+', "_", (project.get("name") or "project"))[:60] + ".plancraft.zip"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(data)
+                return None
+            if rest == ["search"] and method == "GET":
+                return self.send_json(search.search(st.load(pid), st.project_dir(pid), q.get("q") or ""))
+            if rest == ["compare"] and method == "POST":
+                body = self.read_json()
+                other_id = body.get("other")
+                if not other_id or other_id == pid:
+                    raise ValueError("Pick another project to compare with.")
+                return self.send_json(compare.compare_projects(st.load(pid), st.load(other_id)))
+            if rest == ["compare.xlsx"] and method == "POST":
+                import export_xlsx
+                body = self.read_json()
+                other_id = body.get("other")
+                if not other_id or other_id == pid:
+                    raise ValueError("Pick another project to compare with.")
+                report = compare.compare_projects(st.load(pid), st.load(other_id))
+                data = export_xlsx.build_compare(report)
+                name = re.sub(r'[\\/:*?"<>|]+', "_", (report["old"]["name"] or "old") + " vs " +
+                              (report["new"]["name"] or "new"))[:80] + " - revision.xlsx"
+                self.send_response(200)
+                self.send_header("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Content-Disposition", f"attachment; filename*=UTF-8''{quote(name)}")
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(data)
+                return None
             if rest == ["print"] and method == "POST":              # build a PDF of plan pages (background job)
                 import printpdf
                 opts = self.read_json()

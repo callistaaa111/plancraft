@@ -158,10 +158,19 @@ function itemCost(it) {
 function costBox(items) {
   const c = costing(S.project, ix(), qtyOf, items);
   if (!c.bom.length) return null;
+  const line = (label, value, strong = false) => h('div', { class: 'line' },
+    h('span', { style: strong ? { fontWeight: 600 } : null }, label),
+    h('span', { style: strong ? { fontWeight: 600 } : null }, money(value, S.project)));
   return h('div', { class: 'qtybox' },
-    h('div', { class: 'line' }, h('span', null, 'Materials'), h('span', null, money(c.subtotal, S.project))),
-    c.markup ? h('div', { class: 'line' }, h('span', null, `With ${c.markup}% markup`), h('span', null, money(c.total, S.project))) : null,
-    h('div', { class: 'line' }, h('span', null, 'Different materials'), h('span', null, String(c.bom.length))));
+    line('Materials', c.materials),
+    c.labour ? line('Labour', c.labour) : null,
+    line('Subtotal', c.subtotal, true),
+    c.overheadAmount ? line(`Overhead ${c.overhead}%`, c.overheadAmount) : null,
+    c.contingencyAmount ? line(`Contingency ${c.contingency}%`, c.contingencyAmount) : null,
+    c.markupAmount ? line(`Markup ${c.markup}%`, c.markupAmount) : null,
+    c.taxAmount ? line(`Tax ${c.tax}%`, c.taxAmount) : null,
+    line('Total', c.total, true),
+    h('div', { class: 'line' }, h('span', null, 'Different priced lines'), h('span', null, String(c.bom.length))));
 }
 
 // ---- render ----------------------------------------------------------------------------------------
