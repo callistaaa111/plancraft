@@ -236,6 +236,19 @@ class ImportTests(unittest.TestCase):
             self.assertAlmostEqual(measure.item_quantities(lin, pages)["qty"], (50 + 60) / 10)
             self.assertEqual(measure.item_quantities(cnt, pages)["qty"], 3)
 
+    def test_swiftjob_with_unreadable_image_still_imports(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            good, bad = Path(tmp) / "good.SwiftJob", Path(tmp) / "bad.SwiftJob"
+            make_swiftjob(good)
+            with zipfile.ZipFile(good) as zin, zipfile.ZipFile(bad, "w") as zout:
+                for n in zin.namelist():
+                    zout.writestr(n, b"not an image" if n.endswith(".tiff") else zin.read(n))
+            store = Store(Path(tmp) / "data")
+            res = importers.import_swiftjob(_Task(), bad, store, filename="bad.SwiftJob")
+            self.assertEqual((res["pages"], res["missingImages"]), (0, ["GF POWER"]))
+            self.assertEqual(store.load(res["projectId"])["pages"], [])
+
 
 class VisionTests(unittest.TestCase):
     def _plan(self, tmp):
@@ -737,6 +750,20 @@ class ArchiveTests(unittest.TestCase):
                 z.writestr("project.json", "{}")
             with self.assertRaises(ValueError):
                 archive.import_project(store, path)
+
+    def test_archive_with_outside_source_pdf_is_refused(self):
+        import archive
+        with tempfile.TemporaryDirectory() as tmp:
+            store, pid = self._project(tmp)
+            p = store.load(pid)
+            p["pages"][0]["src"] = {"file": "C:/Users/someone/other.pdf", "page": 0}
+            store.save(pid, p)
+            path = Path(tmp) / "job.plancraft.zip"
+            path.write_bytes(archive.export_project(store, pid))
+            other = Store(Path(tmp) / "restored")
+            with self.assertRaises(ValueError):
+                archive.import_project(other, path)
+            self.assertEqual(other.list(), [])      # nothing half-imported
 
 
 class DemoTests(unittest.TestCase):
