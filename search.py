@@ -7,6 +7,7 @@ from compare import _walk
 
 MAX_RESULTS = 200
 MAX_TEXT = 200_000
+MAX_RECTS = 50                     # hits outlined per page
 
 
 def _fitz():
@@ -17,30 +18,37 @@ def _fitz():
     return fitz
 
 
-def _page_text(project_dir: Path, page: dict) -> str:
-    """The PDF's own text layer (full length), else text stored on the page (OCR, or older projects)."""
-    return _pdf_text(project_dir, page) or page.get("text") or ""
-
-
-def _pdf_text(project_dir: Path, page: dict) -> str:
+def _pdf_search(project_dir: Path, page: dict, query: str) -> tuple[str, list]:
+    """The PDF's own text layer (full length), and where the query sits on the page image as [[x, y, w, h], ...]."""
     src = page.get("src") or {}
     if not src.get("file"):
-        return ""
+        return "", []
     path = Path(project_dir) / "sources" / src["file"]
     if not path.is_file():
-        return ""
+        return "", []
     try:
         fitz = _fitz()
         doc = fitz.open(str(path))
         try:
             idx = int(src.get("page") or 0)
-            if 0 <= idx < doc.page_count:
-                return (doc[idx].get_text("text") or "")[:MAX_TEXT]
+            if not 0 <= idx < doc.page_count:
+                return "", []
+            p = doc[idx]
+            text = (p.get_text("text") or "")[:MAX_TEXT]
+            if query.lower() not in text.lower():
+                return text, []
+            # turn the page like the image PlanCraft shows (as printpdf does), then scale PDF points to image pixels
+            p.set_rotation((p.rotation + 90 * int(src.get("turns") or 0)) % 360)
+            if p.rotation:
+                p.remove_rotation()
+            f = float(page.get("width") or 0) / p.rect.width if p.rect.width else 0
+            rects = [[round(r.x0 * f, 1), round(r.y0 * f, 1), round(r.width * f, 1), round(r.height * f, 1)]
+                     for r in p.search_for(query)[:MAX_RECTS]] if f else []
+            return text, rects
         finally:
             doc.close()
     except Exception:
-        return ""
-    return ""
+        return "", []
 
 
 def _snippet(text: str, query: str, width: int = 90) -> str:
@@ -62,14 +70,14 @@ def search(project: dict, project_dir: Path, query: str) -> dict:
     results = []
     seen = set()
 
-    def add(kind, page_id, title, snippet, score=0):
+    def add(kind, page_id, title, snippet, score=0, rects=()):
         key = (kind, page_id, title, snippet)
         if key in seen or len(results) >= MAX_RESULTS:
             return
         seen.add(key)
         page = page_by_id.get(page_id) or {}
         results.append({"type": kind, "pageId": page_id, "pageName": page.get("name") or "",
-                        "title": title, "snippet": snippet, "score": score})
+                        "title": title, "snippet": snippet, "score": score, "rects": list(rects)})
 
     for p in pages:
         hay = " ".join(str(p.get(k) or "") for k in ("name", "group", "source"))
@@ -89,11 +97,10 @@ def search(project: dict, project_dir: Path, query: str) -> dict:
             add("note", mark.get("page"), "Note", _snippet(mark.get("text") or "", q), 2)
 
     for p in pages:
-        text = _page_text(project_dir, p)
-        if not text:
-            continue
-        if q.lower() in text.lower():
-            add("text", p["id"], "Text on " + (p.get("name") or "page"), _snippet(text, q), 1)
+        text, rects = _pdf_search(project_dir, p, q)
+        text = text or p.get("text") or ""            # no PDF text layer: OCR text (or older projects), no positions
+        if text and q.lower() in text.lower():
+            add("text", p["id"], "Text on " + (p.get("name") or "page"), _snippet(text, q), 1, rects)
 
     results.sort(key=lambda r: (r["score"], r["pageName"], r["title"]), reverse=True)
     return {"query": q, "results": results[:MAX_RESULTS], "truncated": len(results) >= MAX_RESULTS}

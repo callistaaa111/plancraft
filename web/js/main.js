@@ -21,7 +21,7 @@ import { openPrint } from './printdialog.js';
 import { getDraft, dropDraft, sameContent } from './recovery.js';
 import { initAutoCount } from './autocount.js';
 import { initCompare } from './compare.js';
-import { openProjectSearch } from './search.js';
+import { openProjectSearch, initFind } from './search.js';
 import { openPageManager } from './pagemgr.js';
 import { openBulkEdit } from './bulk.js';
 import { openPalette } from './palette.js';
@@ -30,6 +30,7 @@ const viewer = new Viewer($('#canvasHost'), $('#canvas'));
 initMarkup(viewer);
 initAutoCount(viewer, $('#canvasHost'));
 const compare = initCompare(viewer, $('#canvasHost'));
+initFind(viewer);
 const PLAN_TYPES = '.pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.gif,.webp';
 const enc = encodeURIComponent;
 
