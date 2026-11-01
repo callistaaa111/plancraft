@@ -33,7 +33,7 @@ if FROZEN:
 else:
     APP_DIR = Path(__file__).resolve().parent
     RESOURCE_DIR = APP_DIR
-sys.path.insert(0, str(RESOURCE_DIR))
+sys.path.insert(0, str(RESOURCE_DIR / "app"))   # the app's modules (a frozen build bundles them instead)
 
 import archive  # noqa: E402
 import compare  # noqa: E402
@@ -56,7 +56,7 @@ MAX_JSON = 300 * 1024 * 1024
 # A newer launch replaces a server still running older code. In a frozen build there are no .py files:
 # use the executable's timestamp, which changes with every release.
 CODE_STAMP = (int(Path(sys.executable).stat().st_mtime) if FROZEN
-              else int(max(f.stat().st_mtime for f in APP_DIR.glob("*.py"))))
+              else int(max(f.stat().st_mtime for f in [*APP_DIR.glob("*.py"), *(APP_DIR / "app").glob("*.py")])))
 CHUNK = 1024 * 1024
 XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 

@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(SPECPATH).resolve().parent
 CONSOLE = os.environ.get("PLANCRAFT_CONSOLE") == "1"
 APP_NAME = os.environ.get("PLANCRAFT_APP_NAME") or ("PlanCraftDebug" if CONSOLE else "PlanCraft")
-VERSION_TEXT = (ROOT / "version.py").read_text(encoding="utf-8")
+VERSION_TEXT = (ROOT / "app" / "version.py").read_text(encoding="utf-8")
 VERSION = re.search(r'__version__\s*=\s*"([^"]+)"', VERSION_TEXT).group(1)
 VER = tuple(int(part) for part in VERSION.split(".")) + (0, 0, 0)
 VER = VER[:4]
@@ -51,7 +51,7 @@ VSVersionInfo(
 
 datas = [
     (str(ROOT / "web"), "web"),
-    (str(ROOT / "PlanCraft.ico"), "."),
+    (str(ROOT / "packaging" / "PlanCraft.ico"), "."),
 ]
 
 # Modules imported inside functions are easy for static analysis to miss; name the app's own modules and the
@@ -89,7 +89,7 @@ hiddenimports = [
 
 a = Analysis(
     [str(ROOT / "server.py")],
-    pathex=[str(ROOT)],
+    pathex=[str(ROOT), str(ROOT / "app")],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
@@ -121,7 +121,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(ROOT / "PlanCraft.ico"),
+    icon=str(ROOT / "packaging" / "PlanCraft.ico"),
     version=str(VERSION_FILE),
 )
 

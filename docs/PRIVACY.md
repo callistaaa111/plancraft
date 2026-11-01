@@ -23,7 +23,7 @@ found in tracked files.**
 | Phone-number patterns | 0 |
 | Local data folder | present, **ignored by git**, 265 files / about 1.08 GB |
 
-The only committed binary files are `PlanCraft.ico` and the synthetic `docs/screenshots/plan-with-takeoff.png`.
+The only committed binary files are `packaging/PlanCraft.ico` and the synthetic `docs/screenshots/plan-with-takeoff.png`.
 The screenshot was generated from a made-up electrical sheet; it contains no client name, address, phone number or
 real plan.
 
