@@ -696,6 +696,16 @@ class SearchTests(unittest.TestCase):
             self.assertTrue(pg["hasText"])
             hits = search.search({"pages": [pg], "tree": []}, d, "LP-9Z")["results"]
             self.assertEqual([h["type"] for h in hits], ["text"])
+            # where the word is on the page image (72 dpi: 1 pt = 1 px), checked against the rendered ink: the
+            # line "PANEL LP-9Z" inks x 20-70, y 3344-3351, and LP-9Z is its last 22 px
+            rect = hits[0]["rects"][0]
+            for got, want in zip(rect, [48.5, 3341.4, 21.8, 11.0], strict=True):
+                self.assertAlmostEqual(got, want, delta=2)
+            # the page turned a quarter right (x, y -> H - y, x): the word stands upright near the top left
+            turned = {**pg, "width": pg["height"], "height": pg["width"], "src": {**pg["src"], "turns": 1}}
+            rect = search.search({"pages": [turned], "tree": []}, d, "LP-9Z")["results"][0]["rects"][0]
+            for got, want in zip(rect, [3400 - 3341.4 - 11.0, 48.5, 11.0, 21.8], strict=True):
+                self.assertAlmostEqual(got, want, delta=2)
 
 
 class ArchiveTests(unittest.TestCase):
