@@ -226,6 +226,17 @@ body.dragging::after {
 .canvas-host.c-draw canvas { cursor: crosshair; }
 .canvas-host.c-move canvas { cursor: move; }
 .canvas-host.c-pointer canvas { cursor: pointer; }
+.mode-chip { position: absolute; top: 10px; left: 12px; right: 12px; margin-inline: auto; width: max-content; max-width: calc(100% - 24px); display: flex; align-items: center; gap: 10px; padding: 4px 4px 4px 12px; background: var(--panel); color: var(--text); border: 1px solid var(--border-strong); border-radius: 999px; box-shadow: var(--shadow); font-size: 13px; white-space: nowrap; }
+.mode-chip[hidden] { display: none; }
+.mode-chip .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px rgba(0, 0, 0, .3); }
+.mode-chip .what { font-weight: 600; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.mode-chip .qty { font-variant-numeric: tabular-nums; }
+.mode-chip .keys { color: var(--muted); }
+.mode-chip .btn { border-radius: 999px; }
+@media (max-width: 1000px) { .mode-chip .keys { display: none; } }
+.count-ping { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border: 2px solid; border-radius: 50%; pointer-events: none; animation: ping .45s ease-out forwards; }
+@keyframes ping { from { transform: scale(.6); opacity: .9; } to { transform: scale(2.6); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .count-ping { display: none; } }
 .empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: var(--muted); padding: 20px; }
 .empty .box { max-width: 380px; }
 .empty strong { display: block; color: var(--text); font-size: 16px; margin-bottom: 6px; }

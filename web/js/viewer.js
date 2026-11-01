@@ -1,6 +1,6 @@
 // The plan viewer: draws the page and the takeoff, and handles drawing / editing on it.
 import {
-  S, on, ix, mutate, beginTx, live, commitTx, pageById, nodeById, currentPage, selectedItem, select, setTool, emit,
+  S, on, ix, mutate, beginTx, live, commitTx, pageById, nodeById, currentPage, selectedItem, select, setTool, emit, qtyOf,
 } from './store.js';
 import * as M from './measure.js';
 import { pageUrl } from './api.js';
@@ -746,6 +746,56 @@ export class Viewer {
     const hint = document.getElementById('stHint');
     if (live) live.textContent = this.liveText(page);
     if (hint) hint.textContent = this.hintText();
+    this.updateChip(page);
+  }
+
+  /** The chip at the top of the plan: what a click does right now, the running total, and how to stop. */
+  updateChip(page) {
+    const chip = document.getElementById('modeChip');
+    if (!chip) return;
+    const c = this.chipInfo(page);
+    if (chip.hidden !== !c) chip.hidden = !c;
+    if (!c) return;
+    // built once and then only its text changes: rebuilding would swap the Done button out from under a click
+    if (!chip.firstChild) {
+      chip.append(h('span', { class: 'dot' }), h('span', { class: 'what' }), h('span', { class: 'qty' }), h('span', { class: 'keys' }),
+        h('button', { class: 'btn small', type: 'button', title: 'Finish and go back to Select (Esc)', onclick: () => { this.finishDraft(); setTool('select'); } }, 'Done'));
+    }
+    const [dot, what, qty, keys] = chip.children;
+    const set = (el, text) => { if (el.textContent !== text) el.textContent = text; el.hidden = !text; };   // runs every frame
+    dot.hidden = !c.color;
+    dot.style.background = c.color || '';
+    set(what, c.label);
+    set(qty, c.qty || '');
+    set(keys, c.keys);
+  }
+
+  chipInfo(page) {
+    const running = this.draft ? this.liveText(page) : '';
+    switch (S.tool) {
+      case 'takeoff': {
+        const it = selectedItem();
+        if (!it) return { label: 'Takeoff: pick an item in the list', keys: 'Esc to stop' };
+        const q = qtyOf(it);
+        const verb = it.type === 'count' ? 'Counting' : it.type === 'area' ? 'Measuring area' : 'Drawing';
+        return {
+          color: it.color, label: `${verb} ${it.name}`,
+          qty: running || `${fmt(q.qty, it.type === 'count' ? 0 : 2)} ${q.unit}`,
+          keys: this.draft ? 'Enter to finish · Esc to cancel' : 'Esc to stop',
+        };
+      }
+      case 'measure': return { label: 'Measuring (not saved)', qty: running, keys: 'Esc to stop' };
+      case 'scale': return { label: 'Setting the scale', keys: 'Esc to cancel' };
+      case 'crop': return { label: 'Crop to a new page', keys: 'Esc to cancel' };
+      default: return null;
+    }
+  }
+
+  /** A short ring where a count lands, so every click is felt. */
+  ping([x, y], color) {
+    const el = h('span', { class: 'count-ping', style: { left: `${x}px`, top: `${y}px`, borderColor: color } });
+    this.host.append(el);
+    setTimeout(() => el.remove(), 600);   // not animationend: with reduced motion there is no animation
   }
 
   hintText() {
@@ -1096,6 +1146,7 @@ export class Viewer {
       }
       sec.points.push(p);
     });
+    this.ping(this.toScr(p), it.color);
   }
 
   pointToolDown(e, x, y) {
