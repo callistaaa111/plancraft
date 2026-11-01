@@ -15,6 +15,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import unquote
 
 import numpy as np
 
@@ -727,9 +728,8 @@ class ArchiveTests(unittest.TestCase):
         import archive
         with tempfile.TemporaryDirectory() as tmp:
             store, pid = self._project(tmp)
-            data = archive.export_project(store, pid)
             path = Path(tmp) / "job.plancraft.zip"
-            path.write_bytes(data)
+            archive.export_project(store, pid, path)
             other = Store(Path(tmp) / "restored")
             p = archive.import_project(other, path)
             self.assertNotEqual(p["id"], pid)
@@ -759,7 +759,7 @@ class ArchiveTests(unittest.TestCase):
             p["pages"][0]["src"] = {"file": "C:/Users/someone/other.pdf", "page": 0}
             store.save(pid, p)
             path = Path(tmp) / "job.plancraft.zip"
-            path.write_bytes(archive.export_project(store, pid))
+            archive.export_project(store, pid, path)
             other = Store(Path(tmp) / "restored")
             with self.assertRaises(ValueError):
                 archive.import_project(other, path)
@@ -994,6 +994,16 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(server.same_origin(8791, "http://127.0.0.1:8792"))
         self.assertFalse(server.same_origin(8791, "https://127.0.0.1:8791"))
         self.assertFalse(server.same_origin(8791, "null"))
+
+    def test_safe_name_and_archive_download(self):
+        import server
+        self.assertEqual(server.safe_name('A/B: "C"?\tD'), "A_B_ _C_D")
+        self.assertEqual(len(server.safe_name("x" * 300)), 80)
+        st, p = self.call("POST", "/api/projects", {"name": "Zip: test"})
+        with urllib.request.urlopen(self.base + f"/api/projects/{p['id']}/archive") as r:
+            self.assertEqual(r.headers["Content-Type"], "application/zip")
+            self.assertIn("Zip_ test.plancraft.zip", unquote(r.headers["Content-Disposition"]))
+            self.assertEqual(r.read()[:2], b"PK")
 
     def test_cross_site_writes_are_refused(self):
         body = json.dumps({"name": "csrf"}).encode()

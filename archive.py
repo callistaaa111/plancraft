@@ -5,7 +5,6 @@ so it cannot overwrite work that is already open.
 """
 from __future__ import annotations
 
-import io
 import json
 import re
 import shutil
@@ -20,11 +19,11 @@ CHUNK = 1024 * 1024
 SOURCE_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}\.pdf$")   # kept PDFs are named <hash>.pdf by importers.import_pdf
 
 
-def export_project(store, pid: str) -> bytes:
+def export_project(store, pid: str, out: Path) -> None:
+    """Write the archive to out (a file, not memory: page images and PDFs can be hundreds of MB)."""
     d = store.project_dir(pid)
     project = store.load(pid)
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         z.writestr("archive.json", json.dumps({"format": FORMAT, "version": VERSION, "project": pid}, indent=2))
         z.writestr("project.json", json.dumps(project, ensure_ascii=False, separators=(",", ":")))
         for sub in ("pages", "sources"):
@@ -34,7 +33,6 @@ def export_project(store, pid: str) -> bytes:
             for f in sorted(folder.rglob("*")):
                 if f.is_file() and not f.name.endswith(".tmp"):
                     z.write(f, f"{sub}/{f.relative_to(folder).as_posix()}")
-    return buf.getvalue()
 
 
 def _safe_members(z: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
