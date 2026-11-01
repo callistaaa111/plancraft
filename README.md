@@ -16,14 +16,14 @@ Excel or a PlanSwift job. It also opens your existing `.SwiftJob` files, includi
 
 ## Download and install
 
-1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.2.0.exe`).
+1. **[Download the latest installer](https://github.com/callistaaa111/plancraft/releases/latest)** (`PlanCraft-Setup-1.3.0.exe`).
 2. Run it. It installs for the current Windows user, so it does **not** need administrator rights.
 3. Start **PlanCraft** from the Desktop or Start menu. It opens in its own window; closing the window stops the
    server about 10 minutes later.
 
 Your projects live in `%LOCALAPPDATA%\PlanCraft\data` and are kept when you update or uninstall.
 
-**Portable:** download `PlanCraft-1.2.0-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
+**Portable:** download `PlanCraft-1.3.0-portable.zip`, unpack it anywhere, and run `PlanCraft.exe`. Put an empty
 `portable.txt` next to the executable to keep the projects in a `data` folder beside it.
 
 **From source** (Python 3.10+):
@@ -67,8 +67,9 @@ already installed; it adds the same shortcuts.
   once. The Pages list shows a small thumbnail of each sheet.
 - **UI scale** (Ctrl+K) offers 90%, 100%, 110% and 125% and remembers the choice.
 - **Search items** to jump to an item's page and zoom to its takeoff.
-- **Search project** (Ctrl+Shift+F) searches page names, items, notes and the text layer of PDF pages, then jumps to
-  the page. If Tesseract is installed, **OCR scanned pages** makes image-only plans searchable too.
+- **Search project** (Ctrl+Shift+F) searches page names, items, notes and the text layer of PDF pages. A plan-text
+  hit zooms to the word on the sheet and outlines every hit there; Enter / Shift+Enter step through them. If Tesseract
+  is installed, **OCR scanned pages** makes image-only plans searchable too (those open the page, without the zoom).
 - **Project templates:** save a project's price list, assemblies, folder/item skeleton and settings, then start a new
   job from it (pages and takeoff are never copied).
 - **Try demo** creates a small sample electrical project with a plan, folders, materials, assemblies and a quote.
@@ -84,16 +85,22 @@ already installed; it adds the same shortcuts.
 - Count items can be **box-selected** on the plan and deleted in one go. **Focus** (G) fades the rest of the takeoff.
 - **Bulk edit** several items at once (colour, unit, allowance, assembly, visibility). Each item can also carry a
   **manual adjustment** with a reason, and a **Flag for review** marker.
+- While a click will add takeoff, a chip at the top of the plan says what you are doing ("Counting SWITCH · 9 ea"),
+  with the running total and a **Done** button.
+- **Drops:** give each page a **ceiling height** and a count item a **mounting height** (plus slack and drops per
+  device); the item gets a **Drop length** = (ceiling - mounting + slack) x drops for every device, shown on screen
+  and in the Excel Summary, and an assembly part on "its drop length" prices the wire for it.
 - **P** hides the properties panel. **?** shows every shortcut. **Ctrl+K** opens the command palette.
 
 ### Auto count
 
-Select a count item, press **Auto count** (A), zoom to the area and drag a box tightly around **one** symbol.
-PlanCraft finds look-alikes (only in the visible part of the page by default), shows green/grey/red circles, and adds
+Press **Auto count** (A), zoom to the area and drag a box tightly around **one** symbol. With a count item selected
+the matches go to it; otherwise PlanCraft asks what the symbol is and makes the item. It finds look-alikes (only in the visible part of the page by default), shows green/grey/red circles, and adds
 the ones you keep. **Symbol shape** compares a whole symbol; **Dots on wires** finds lights drawn as filled dots on a
 circuit wire. The **Match strength** slider trades recall for precision. Always review the circles before adding.
-**Save symbol** stores the boxed symbol in the project; **Symbols...** can run it across selected pages and add the
-reviewed matches to a count item.
+**Add, then other pages...** adds this sheet's matches and then searches the other sheets you tick (this one is left
+out, so nothing is counted twice). **Save symbol** stores the boxed symbol in the project; **Symbols...** can run it
+across selected pages and add the matches to a count item.
 
 ### Compare revisions
 
@@ -164,7 +171,7 @@ python -m venv .venv
 python -m pip install -r requirements-dev.txt
 
 python server.py --open                              # run from source
-python -m unittest discover -s tests -v              # 54 tests
+python -m unittest discover -s tests -v              # 62 tests
 ruff check .                                         # lint
 python -m coverage run -m unittest discover -s tests
 python -m coverage report -m
@@ -202,7 +209,7 @@ pricelist.py       supplier price-list reader
 pricing.py         materials, assemblies and costing
 tasks.py           background import/export jobs
 web/               plain ES modules + canvas UI, no bundler
-tests/             54 unittest cases (quantities, imports, exports, API, security)
+tests/             62 unittest cases (quantities, imports, exports, API, security)
 packaging/         PyInstaller spec and Inno Setup script
 scripts/build.ps1  local release build
 scripts/privacy_scan.py  blocks client documents, secrets and PII in CI
