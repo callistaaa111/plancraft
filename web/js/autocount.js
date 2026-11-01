@@ -1,10 +1,10 @@
 // Auto count: box one symbol, PlanCraft finds the look-alikes on the page, you review them and add them to a count item.
-import { S, mutate, selectedItem, currentPage } from './store.js';
+import { S, mutate, selectedItem, currentPage, select, newItem, insertNode, insertionPoint } from './store.js';
 import * as api from './api.js';
 import { h, uid } from './util.js';
 import { icon } from './icons.js';
 import { promptText, toast } from './dialogs.js';
-import { openSymbolLibrary } from './symbols.js';
+import { openSymbolLibrary, countOnPages } from './symbols.js';
 
 const r2 = v => Math.round(v * 100) / 100;
 const PREFS = 'plancraft.autocount';
@@ -95,6 +95,32 @@ export function initAutoCount(viewer, host) {
     close();
   }
 
+  /** Add this page's matches, then look for the same symbol on the other pages (reviewed before adding). */
+  async function addAndSpread() {
+    if (!res) return;
+    const { pageId, rect } = res;
+    const it = findItem(res.itemId);
+    const page = S.project.pages.find(p => p.id === pageId);
+    if (classify().includes('on')) add(); else close();
+    if (!it || !page) return;
+    try {
+      const symbol = await api.saveSymbol(S.project.id, { name: it.name, image: page.image, rect: [rect.x, rect.y, rect.w, rect.h] });
+      select({ type: 'item', id: it.id });
+      countOnPages(symbol, [pageId]);
+    } catch (err) { toast(err.message, 'error'); }
+  }
+
+  /** No count item selected: the boxed symbol starts a new one, named by the user. */
+  async function newCountItem() {
+    const name = await promptText('New count item', 'What is this symbol?', 'Count');
+    if (!name?.trim()) return false;
+    const node = newItem('count', name.trim());
+    const { parentId, index } = insertionPoint();
+    mutate(() => insertNode(node, parentId, index));
+    select({ type: 'item', id: node.id });
+    return true;
+  }
+
   function close() {
     res = null;
     box = null;
@@ -153,6 +179,7 @@ export function initAutoCount(viewer, host) {
       h('div', { class: 'hint' }, 'Click a circle to skip or keep it. Drag a box over the plan to skip all circles in it (hold Shift to keep them).'),
       h('div', { class: 'btn-row' },
         addBtn,
+        S.project.pages.length > 1 ? h('button', { class: 'btn small', onclick: addAndSpread, title: 'Add these, then find the same symbol on the other pages' }, 'Add, then other pages...') : null,
         h('button', { class: 'btn small', onclick: async () => {
           if (!res) return;
           const page = S.project.pages.find(p => p.id === res.pageId);
@@ -255,7 +282,6 @@ export function initAutoCount(viewer, host) {
 
     down(e, x, y) {
       if (busy) return true;
-      const it = selectedItem();
       const p = viewer.toImg(x, y);
       if (res) {
         const i = candidateAt(x, y);
@@ -267,10 +293,6 @@ export function initAutoCount(viewer, host) {
         }
         sweep = { start: p, r: { x: p[0], y: p[1], w: 0, h: 0 }, keep: e.shiftKey };
         viewer.extDrag(this, e, { what: 'sweep', sx: x, sy: y });
-        return true;
-      }
-      if (!it || it.type !== 'count') {
-        toast('Select a count item first (or start one from Takeoff > New count item), then box one symbol.');
         return true;
       }
       box = { x: p[0], y: p[1], w: 0, h: 0, sx: p[0], sy: p[1] };
@@ -317,7 +339,9 @@ export function initAutoCount(viewer, host) {
       if (!box) return;
       const ok = e.type === 'pointerup' && box.w * viewer.view.s >= 6 && box.h * viewer.view.s >= 6;
       if (!ok) { box = null; viewer.render(); if (e.type === 'pointerup') toast('Drag a box tightly around one symbol.'); return; }
-      search({ x: r2(box.x), y: r2(box.y), w: r2(box.w), h: r2(box.h) });
+      const rect = { x: r2(box.x), y: r2(box.y), w: r2(box.w), h: r2(box.h) };
+      if (selectedItem()?.type === 'count') { search(rect); return; }
+      newCountItem().then(made => { if (made) search(rect); else { box = null; viewer.render(); } });
     },
 
     key(e) {
@@ -332,7 +356,7 @@ export function initAutoCount(viewer, host) {
       const it = selectedItem();
       if (busy) return 'Looking for matching symbols...';
       if (res) return 'Green = will be added, red = skipped, grey = already counted. Click a circle, or drag a box (Shift = keep), then Add (Enter).';
-      if (!it || it.type !== 'count') return 'Auto count: select a count item in the Takeoff list first.';
+      if (!it || it.type !== 'count') return 'Auto count: drag a box tightly around ONE symbol, then name it. (Select a count item first to add to it instead.)';
       return `Auto count "${it.name}": zoom to the area to count, then drag a box tightly around ONE symbol.`;
     },
 
