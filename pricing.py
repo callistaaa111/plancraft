@@ -8,6 +8,7 @@ Part quantity for one item = basis value x factor / pack, where basis is one of
   qty       the item's quantity (length, area or count)
   qtyAllow  the quantity with the item's allowance, rounded up like the takeoff sheets
   perimeter / wallArea / volume   the item's extra quantities
+  drop      a count item's drop length (ceiling height - mounting height + slack, per device)
   each      1 for every item that has takeoff (e.g. one panel connector per circuit)
 
 Cost build-up: subtotal -> overhead -> contingency -> the user's extra lines -> markup -> tax.
@@ -19,8 +20,8 @@ from collections import OrderedDict
 
 from measure import item_quantities, with_allowance
 
-BASES = ("qty", "qtyAllow", "perimeter", "wallArea", "volume", "each")
-_EXTRA = {"perimeter": "Perimeter", "wallArea": "Wall area", "volume": "Volume"}
+BASES = ("qty", "qtyAllow", "perimeter", "wallArea", "volume", "drop", "each")
+_EXTRA = {"perimeter": "Perimeter", "wallArea": "Wall area", "volume": "Volume", "drop": "Drop length"}
 
 
 def num(v, default=0.0) -> float:
