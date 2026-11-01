@@ -1,11 +1,11 @@
 ﻿# PlanCraft installer: checks Python, installs the libraries PlanCraft needs, and adds PlanCraft to the Desktop and the
-# Start menu. Run it through "Install PlanCraft.bat". Uninstall with "Uninstall PlanCraft.bat" (your projects stay).
+# Start menu. Run it through "Install PlanCraft.bat" (next to this file). Uninstall with "Uninstall PlanCraft.bat" (your projects stay).
 param(
     [switch]$Uninstall,
     [switch]$NoLaunch      # don't offer to start PlanCraft at the end
 )
 $ErrorActionPreference = 'Stop'
-$App = Split-Path -Parent $MyInvocation.MyCommand.Path
+$App = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)   # the checkout (this file is in scripts\)
 $Name = 'PlanCraft'
 $Desktop = [Environment]::GetFolderPath('Desktop')
 $StartMenu = Join-Path ([Environment]::GetFolderPath('Programs')) $Name
@@ -74,7 +74,7 @@ foreach ($l in $Links) {
     $s.TargetPath = $pyw
     $s.Arguments = "`"$(Join-Path $App 'server.py')`" --open --app --idle-exit 600"
     $s.WorkingDirectory = $App
-    $s.IconLocation = (Join-Path $App 'PlanCraft.ico') + ',0'
+    $s.IconLocation = (Join-Path $App 'packaging\PlanCraft.ico') + ',0'
     $s.Description = 'PlanCraft - offline takeoff'
     $s.Save()
     Say "Shortcut: $l"

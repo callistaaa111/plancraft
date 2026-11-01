@@ -20,7 +20,8 @@ from urllib.parse import unquote
 import numpy as np
 
 APP = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(APP))
+sys.path.insert(0, str(APP))           # server.py
+sys.path.insert(0, str(APP / "app"))   # the app's modules
 
 import export_xlsx  # noqa: E402
 import importers  # noqa: E402

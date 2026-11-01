@@ -37,7 +37,7 @@ python -m pip install -r requirements.txt
 python server.py --open
 ```
 
-That opens <http://127.0.0.1:8791/>. The old `Install PlanCraft.bat` still works for a machine where Python is
+That opens <http://127.0.0.1:8791/>. The old `scripts\Install PlanCraft.bat` still works for a machine where Python is
 already installed; it adds the same shortcuts.
 
 ## First takeoff
@@ -177,7 +177,7 @@ python -m coverage run -m unittest discover -s tests
 python -m coverage report -m
 python scripts/privacy_scan.py                       # no client documents or secrets
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build.ps1
-# or double-click "Build PlanCraft.bat"
+# or double-click "scripts\Build PlanCraft.bat"
 # PyInstaller app + portable zip + installer (installer needs Inno Setup)
 ```
 
@@ -188,32 +188,34 @@ builds the installer and portable zip on a `v*` tag and publishes them to GitHub
 ### Layout
 
 ```
-server.py          local HTTP server, API, static files, launcher
-store.py           one folder per project, atomic saves, backups, trash
-archive.py         portable .plancraft.zip export/import
-demo.py            built-in sample project for "Try demo"
-compare.py         revision matching and quantity deltas
-search.py          page/item/note/PDF-text search
-templates.py       project templates (prices, assemblies, folders, settings)
-quote.py           client proposal PDF
-ocr.py             optional Tesseract OCR for scans
-symbols.py         saved symbols and batch matching
-export_csv.py      CSV summary export
-importers.py       PDF/image/SwiftJob import, crop/rotate/copy pages
-measure.py         quantities from points and page scale
-vision.py          auto count and revision tinting (OpenCV)
-printpdf.py        vector PDF of plans with takeoff, legend and title strip
-export_xlsx.py     Excel workbook (summary, circuits, BOM, notes)
-export_swiftjob.py PlanSwift job writer
-pricelist.py       supplier price-list reader
-pricing.py         materials, assemblies and costing
-tasks.py           background import/export jobs
-web/               plain ES modules + canvas UI, no bundler
-tests/             62 unittest cases (quantities, imports, exports, API, security)
-packaging/         PyInstaller spec and Inno Setup script
-scripts/build.ps1  local release build
-scripts/privacy_scan.py  blocks client documents, secrets and PII in CI
-scripts/check_js_imports.py  guards the browser module graph
+server.py              local HTTP server, API, static files, launcher (the entry point)
+app/                   the app's modules:
+  store.py             one folder per project, atomic saves, backups, trash
+  archive.py           portable .plancraft.zip export/import
+  importers.py         PDF/image/SwiftJob import, crop/rotate/copy pages
+  measure.py           quantities from points and page scale
+  pricing.py           materials, assemblies and costing
+  pricelist.py         supplier price-list reader
+  search.py            page/item/note/PDF-text search, hit positions
+  compare.py           revision matching and quantity deltas
+  vision.py            auto count and revision tinting (OpenCV)
+  symbols.py           saved symbols and batch matching
+  ocr.py               optional Tesseract OCR for scans
+  printpdf.py          vector PDF of plans with takeoff, legend and title strip
+  export_xlsx.py       Excel workbook (summary, circuits, BOM, notes)
+  export_csv.py        CSV summary export
+  export_swiftjob.py   PlanSwift job writer
+  quote.py             client proposal PDF
+  templates.py         project templates (prices, assemblies, folders, settings)
+  folderbackup.py      optional copy of the data folder to another folder
+  demo.py              built-in sample project for "Try demo"
+  tasks.py             background import/export jobs
+  version.py           the version number
+web/                   plain ES modules + canvas UI, no bundler
+tests/                 62 unittest cases (quantities, imports, exports, API, security)
+packaging/             PyInstaller spec, Inno Setup script and the app icon
+scripts/               build.ps1 (release build), privacy_scan.py, check_js_imports.py, and the
+                       source-run helpers: PlanCraft.bat, Install/Uninstall PlanCraft.bat, Build PlanCraft.bat
 ```
 
 The server listens on `127.0.0.1` only and checks the `Host` header. It has no accounts, telemetry or cloud calls.
