@@ -11,9 +11,10 @@ export const BASES = {
   perimeter: 'its perimeter (areas)',
   wallArea: 'its wall area (linear with height)',
   volume: 'its volume (areas with depth)',
+  drop: 'its drop length (counts with a mounting height)',
   each: 'each item (1 per item)',
 };
-const EXTRA = { perimeter: 'Perimeter', wallArea: 'Wall area', volume: 'Volume' };
+const EXTRA = { perimeter: 'Perimeter', wallArea: 'Wall area', volume: 'Volume', drop: 'Drop length' };
 
 const num = (v, d = 0) => (Number.isFinite(Number(v)) && v !== '' && v !== null ? Number(v) : d);
 

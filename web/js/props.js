@@ -240,6 +240,14 @@ function itemPanel(it) {
     typeFields.push(h('div', { class: 'field-row' },
       field('Marker', shape),
       field('Size', h('div', { class: 'inline' }, liveInput('range', p.size || 9, v => { p.size = Number(v); val.textContent = `${v}px`; }, { min: 4, max: 24, step: 1 }), val))));
+    const drops = p.mount != null && p.mount !== '';
+    const noCeiling = drops ? S.project.pages.filter(pg => !Number(pg.ceiling) && it.sections.some(s => s.page === pg.id)).length : 0;
+    typeFields.push(h('div', { class: 'field-row' },
+      field(`Mounting height (${u.len})`, numInput(p.mount, v => setProp(it, 'mount', v), { min: 0, placeholder: 'no drops' })),
+      field(`Slack per drop (${u.len})`, numInput(p.slack, v => setProp(it, 'slack', v), { min: 0, placeholder: '0' }))),
+    field('Drops per device', numInput(p.drops, v => setProp(it, 'drops', v), { min: 1, step: 1, placeholder: '1' }),
+      'Drop length = (page ceiling height − mounting height + slack) × drops, for every device. Price the wire with an assembly part on "its drop length".'),
+    noCeiling ? h('div', { class: 'warn' }, `${noCeiling} page(s) with these devices have no ceiling height, so they add no drops. Set it in the page properties.`) : null);
   }
   return h('div', { class: 'props' },
     head(TYPE_NAME[it.type], it.type, it.name, it.color),
@@ -368,6 +376,11 @@ function pagePanel() {
         h('div', { class: 'btn-row', style: { marginTop: '6px' } },
           h('button', { class: 'btn small', onclick: () => scaleDialog(page.id, { onCalibrate: A.calibrate }), html: `${icon('scale')}<span>Set scale...</span>` }),
           h('button', { class: 'btn small', onclick: () => A.calibrate?.(), html: `${icon('measure')}<span>Calibrate on plan</span>` }))),
+      field(`Ceiling height (${M.unitInfo(S.project.units).len})`, h('div', { class: 'inline' },
+        numInput(page.ceiling, v => mutate(() => { currentPage().ceiling = v; }), { min: 0, placeholder: 'for drops' }),
+        h('button', { class: 'btn small', type: 'button', title: 'Give every page this ceiling height',
+          onclick: () => mutate(() => { const c = currentPage().ceiling; for (const pg of S.project.pages) pg.ceiling = c; }) }, 'Use on all pages')),
+      'Count items with a mounting height get their drop length from this.'),
       h('div', { class: 'stat-grid' },
         h('span', null, 'Takeoff here'), h('span', null, `${n} section(s), ${itemsOnPage} item(s)`),
         h('span', null, 'Image'), h('span', null, `${page.width || '?'} x ${page.height || '?'} px`),
