@@ -6,6 +6,48 @@ import { modal, toast, progressBox } from './dialogs.js';
 import { openPage } from './pages.js';
 
 const KIND = { page: 'Page', item: 'Item', note: 'Note', text: 'Plan text' };
+let finder = null;
+
+/** Outline a search's hits on the plan, zoom to one, and step through them with Enter (Shift+Enter goes back). */
+export function initFind(viewer) {
+  let hit = null;   // {pageId, rects: [[x, y, w, h] in page pixels], i, query}
+  const here = () => hit && hit.pageId === S.pageId;
+  const show = () => {
+    const [x, y, w, hgt] = hit.rects[hit.i];
+    viewer.showPoints([[x, y], [x + w, y + hgt]]);
+  };
+  finder = (pageId, rects, query) => {
+    hit = rects.length ? { pageId, rects, i: 0, query } : null;
+    if (hit) show();
+  };
+  viewer.use({
+    drawOver(ctx) {
+      if (!here()) return;
+      hit.rects.forEach(([x, y, w, hgt], i) => {
+        const cur = i === hit.i, pad = cur ? 4 : 2;
+        const [x0, y0] = viewer.toScr([x, y]), [x1, y1] = viewer.toScr([x + w, y + hgt]);
+        ctx.fillStyle = cur ? 'rgba(255, 196, 0, .45)' : 'rgba(255, 196, 0, .25)';
+        ctx.fillRect(x0 - pad, y0 - pad, x1 - x0 + pad * 2, y1 - y0 + pad * 2);
+        ctx.strokeStyle = cur ? '#d9480f' : 'rgba(217, 72, 15, .6)';
+        ctx.lineWidth = cur ? 2.5 : 1.2;
+        ctx.strokeRect(x0 - pad, y0 - pad, x1 - x0 + pad * 2, y1 - y0 + pad * 2);
+      });
+    },
+    key(e) {
+      if (!here() || S.tool !== 'select') return false;
+      if (e.key === 'Escape') { hit = null; viewer.render(); return true; }
+      if (e.key !== 'Enter') return false;
+      hit.i = (hit.i + (e.shiftKey ? -1 : 1) + hit.rects.length) % hit.rects.length;
+      show();
+      return true;
+    },
+    hint() {
+      return here() && S.tool === 'select'
+        ? `"${hit.query}": ${hit.i + 1} of ${hit.rects.length} on this sheet. Enter = next, Shift+Enter = back, Esc = clear.` : null;
+    },
+    reset(why) { if (why === 'page' && !here()) hit = null; },
+  });
+}
 
 export function openProjectSearch() {
   if (!S.project) return;
@@ -26,10 +68,11 @@ export function openProjectSearch() {
         if (!r.pageId) { toast('That item has no takeoff on a page yet.'); return; }
         openPage(r.pageId);
         closer?.(null);
+        finder?.(r.pageId, r.rects || [], res.query);
       },
     },
     h('span', { class: 'badge' }, KIND[r.type] || r.type),
-    h('span', { class: 'search-text' }, h('strong', null, r.title),
+    h('span', { class: 'search-text' }, h('strong', null, r.title + (r.rects?.length > 1 ? ` (${r.rects.length} on the sheet)` : '')),
       h('span', { class: 'hint' }, r.pageName + (r.snippet ? ' — ' + r.snippet : ''))))));
     if (res.truncated) results.append(h('div', { class: 'hint' }, 'Showing the first ' + rows.length + ' results.'));
   };
