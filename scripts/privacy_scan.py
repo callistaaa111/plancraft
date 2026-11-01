@@ -22,7 +22,7 @@ FORBIDDEN = {
 }
 # Binary files that are legitimate in this repository.
 ALLOWED_BINARY = {
-    "PlanCraft.ico",
+    "packaging/PlanCraft.ico",
     "docs/screenshots/plan-with-takeoff.png",
 }
 MAX_SCAN_BYTES = 2 * 1024 * 1024

@@ -1,7 +1,8 @@
 @echo off
 setlocal
 title PlanCraft - keep this window open
-cd /d "%~dp0"
+rem this file is in scripts\: work from the checkout folder above it
+cd /d "%~dp0.."
 
 rem Use a Python that already has the plan libraries (PyMuPDF, Pillow, openpyxl, OpenCV).
 python -c "import pymupdf, PIL, openpyxl, cv2, numpy" >nul 2>nul && (set "PY=python" & goto run)
