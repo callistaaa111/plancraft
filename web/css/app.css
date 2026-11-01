@@ -70,6 +70,14 @@ svg.i { width: 16px; height: 16px; flex: none; display: block; }
 .btn.ghost:hover { background: var(--hover); }
 .btn.small { height: 26px; padding: 0 8px; font-size: 12px; }
 .btn.icon-only { padding: 0; width: 30px; justify-content: center; }
+/* quick, quiet feedback: hover colours ease in, a press nudges the control */
+.btn, .tool, .toggle, .row, .seg button { transition: background-color .12s ease, border-color .12s ease, color .12s ease; }
+.btn:active:not(:disabled), .tool:active:not(:disabled), .toggle:active { transform: translateY(1px); }
+@media (prefers-reduced-motion: reduce) {
+  .btn, .tool, .toggle, .row, .seg button, .card, .row .twisty svg { transition: none; }
+  .btn:active, .tool:active, .toggle:active { transform: none; }
+  .toast { animation: none; }
+}
 .btn.small.icon-only { width: 26px; }
 .btn:disabled { opacity: .45; cursor: default; }
 input[type="text"], input[type="number"], input[type="search"], select, textarea {
@@ -258,6 +266,7 @@ body.dragging::after {
 .section-title { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; margin-top: 4px; }
 .pp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .pp-table td { padding: 4px 4px; border-bottom: 1px solid var(--border); }
+.pp-table .n { font-variant-numeric: tabular-nums; }
 .pp-table td.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pp-table tr { cursor: pointer; }
 .pp-table tr:hover td { background: var(--hover); }
