@@ -70,6 +70,11 @@ def same_origin(port: int, origin: str) -> bool:
         return False
 
 
+def safe_name(text: str, limit: int = 80) -> str:
+    """A download or export file name Windows accepts: no reserved or control characters, not too long."""
+    return re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", text)[:limit]
+
+
 def default_data_dir() -> Path:
     r"""Where projects live. Source checkout: ./data next to server.py. Installed app: %LOCALAPPDATA%\PlanCraft\data
     (survives upgrades and uninstall); a portable copy with portable.txt next to the exe keeps data beside it."""
@@ -109,6 +114,7 @@ def about(store: Store) -> dict:
 mimetypes.add_type("text/javascript", ".js")
 mimetypes.add_type("text/css", ".css")
 mimetypes.add_type("image/svg+xml", ".svg")
+mimetypes.add_type("application/zip", ".zip")      # Windows' registry says application/x-zip-compressed
 
 
 class Api(BaseHTTPRequestHandler):
@@ -381,13 +387,18 @@ class Api(BaseHTTPRequestHandler):
             if rest == ["quote.pdf"] and method == "GET":
                 project = st.load(pid)
                 data = quote_pdf.build(project)
-                name = re.sub(r'[\\/:*?"<>|]+', "_", "Quote - " + (project.get("name") or "project"))[:80] + ".pdf"
+                name = safe_name("Quote - " + (project.get("name") or "project")) + ".pdf"
                 return self.send_download(data, "application/pdf", name)
             if rest == ["archive"] and method == "GET":
-                data = archive.export_project(st, pid)
-                project = st.load(pid)
-                name = re.sub(r'[\\/:*?"<>|]+', "_", (project.get("name") or "project"))[:60] + ".plancraft.zip"
-                return self.send_download(data, "application/zip", name)
+                fd, tmp = tempfile.mkstemp(prefix="plancraft-", suffix=".zip")   # on disk: a big project stays out of RAM
+                os.close(fd)
+                tmp = Path(tmp)
+                try:
+                    archive.export_project(st, pid, tmp)
+                    name = safe_name(st.load(pid).get("name") or "project", 60) + ".plancraft.zip"
+                    return self.send_file(tmp, cache="no-store", download_name=name)
+                finally:
+                    tmp.unlink(missing_ok=True)
             if rest == ["search"] and method == "GET":
                 return self.send_json(search.search(st.load(pid), st.project_dir(pid), q.get("q") or ""))
             if rest == ["compare"] and method == "POST":
@@ -404,8 +415,8 @@ class Api(BaseHTTPRequestHandler):
                     raise ValueError("Pick another project to compare with.")
                 report = compare.compare_projects(st.load(pid), st.load(other_id))
                 data = export_xlsx.build_compare(report)
-                name = re.sub(r'[\\/:*?"<>|]+', "_", (report["old"]["name"] or "old") + " vs " +
-                              (report["new"]["name"] or "new"))[:80] + " - revision.xlsx"
+                name = safe_name((report["old"]["name"] or "old") + " vs " + (report["new"]["name"] or "new")) \
+                    + " - revision.xlsx"
                 return self.send_download(data, XLSX, name)
             if rest == ["print"] and method == "POST":              # build a PDF of plan pages (background job)
                 import printpdf
@@ -414,7 +425,7 @@ class Api(BaseHTTPRequestHandler):
                 folder = st.project_dir(pid) / "exports"
                 folder.mkdir(exist_ok=True)
                 printpdf.clean_exports(folder)
-                name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "plans")[:60]
+                name = safe_name(project.get("name") or "plans", 60)
                 out = folder / f"{name} - {time.strftime('%Y%m%d-%H%M%S')}.pdf"
                 task = tasks.start("print", printpdf.build, project, st.project_dir(pid), opts, out)
                 return self.send_json({"task": task.id}, 202)
@@ -425,7 +436,7 @@ class Api(BaseHTTPRequestHandler):
                 folder = st.project_dir(pid) / "exports"
                 folder.mkdir(exist_ok=True)
                 printpdf.clean_exports(folder)
-                name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "job")[:60]
+                name = safe_name(project.get("name") or "job", 60)
                 out = folder / f"{name} - {time.strftime('%Y%m%d-%H%M%S')}.SwiftJob"
                 task = tasks.start("swiftjob", export_swiftjob.build, project, st.project_dir(pid), out)
                 return self.send_json({"task": task.id}, 202)
@@ -482,13 +493,13 @@ class Api(BaseHTTPRequestHandler):
                 import export_xlsx
                 project = st.load(pid)
                 data = export_xlsx.build(project)
-                name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "takeoff") + " - takeoff.xlsx"
+                name = safe_name(project.get("name") or "takeoff") + " - takeoff.xlsx"
                 return self.send_download(data, XLSX, name)
             if rest == ["export.csv"] and method == "GET":
                 import export_csv
                 project = st.load(pid)
                 data = export_csv.build(project)
-                name = re.sub(r'[\\/:*?"<>|]+', "_", project.get("name") or "takeoff") + " - takeoff.csv"
+                name = safe_name(project.get("name") or "takeoff") + " - takeoff.csv"
                 return self.send_download(data, "text/csv; charset=utf-8", name)
         raise KeyError(path)
 
