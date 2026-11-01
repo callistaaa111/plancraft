@@ -3,6 +3,44 @@
 All notable changes to PlanCraft. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-11-01
+
+### Added
+
+- **Search jumps to the word.** In project search (Ctrl+Shift+F), a plan-text hit now zooms to the word on the sheet
+  and outlines every hit there; **Enter** / **Shift+Enter** step through them, **Esc** clears. Works on turned pages.
+  Sheets without a PDF text layer (scans, cropped pages) still open the page as before.
+- **Count a symbol in one flow.** Auto count (A) no longer needs a count item first: box one symbol, name it, and the
+  item is made. **Add, then other pages...** adds this sheet's matches and searches the rest of the set, with the
+  current sheet left out so nothing is counted twice.
+- **Drop/rise allowance.** Pages get a **ceiling height** (with "Use on all pages"); count items get a **mounting
+  height**, **slack per drop** and **drops per device**. The item then shows a **Drop length**
+  ((ceiling - mounting + slack) x drops, per device) on screen and in the Excel Summary notes, and assemblies can price
+  wire from it with the new basis "its drop length".
+- **Mode chip on the plan** while a click will add something: "Counting SWITCH · 9 ea", the live length while drawing,
+  the keys on wide windows, and a **Done** button. Each count click flashes a short ring where it lands (off when the
+  system asks for reduced motion).
+
+### Changed
+
+- **Faster plan redraws.** Moving the mouse while drawing reuses the finished plan and takeoff frame and only redraws
+  the cursor layer (about 100 ms to 11 ms per frame on a 2,300-section A1 sheet without graphics acceleration); while
+  panning or zooming the plan image is drawn the fast way and sharpens 0.15 s after the view rests.
+- Projects screen: **New project** comes first. Buttons, tools and rows ease their hover colours and nudge when
+  pressed (off with reduced motion).
+- Download and export file names share one clean-up rule; Excel and CSV names are now length-limited too.
+- Archive export writes the zip to a temporary file instead of memory, so large projects no longer need twice their
+  size in RAM.
+
+### Fixed
+
+- **Security:** a page name from a client's PDF, SwiftJob or archive could run script in the Compare panel's "Copy
+  takeoff to" button. It is now shown as plain text.
+- **Security:** an imported archive could point print, search and OCR at a PDF outside the project folder. Archives
+  whose pages name anything but a plain kept PDF are refused.
+- One unreadable page image no longer stops a whole SwiftJob import (the page is listed as missing), and a failed
+  import no longer leaves an empty project folder behind.
+
 ## [1.2.0] - 2026-10-27
 
 ### Added
