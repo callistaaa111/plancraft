@@ -197,7 +197,7 @@ export function initCompare(viewer, host) {
           : h('button', { class: 'btn small', onclick: startAlign, html: `${icon('align')}<span>Align</span>` }),
         h('button', { class: 'btn small', onclick: () => { setOther(o.id); renderPanel(); viewer.render(); }, title: 'Back to the automatic alignment' }, 'Reset'),
         h('button', { class: 'btn small', onclick: swap, title: `Open "${o?.name || ''}" with this page as the overlay` }, 'Swap')),
-      h('button', { class: 'btn small primary', onclick: transfer, html: `${icon('copy')}<span>Copy takeoff to "${o?.name || ''}"...</span>` }),
+      h('button', { class: 'btn small primary', onclick: transfer }, h('span', { html: icon('copy') }), h('span', null, `Copy takeoff to "${o?.name || ''}"...`)),
     ].filter(Boolean));
   }
 

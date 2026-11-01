@@ -15,6 +15,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from urllib.parse import unquote
 
 import numpy as np
 
@@ -235,6 +236,19 @@ class ImportTests(unittest.TestCase):
             lin, cnt = project["tree"][0]["children"]
             self.assertAlmostEqual(measure.item_quantities(lin, pages)["qty"], (50 + 60) / 10)
             self.assertEqual(measure.item_quantities(cnt, pages)["qty"], 3)
+
+    def test_swiftjob_with_unreadable_image_still_imports(self):
+        import zipfile
+        with tempfile.TemporaryDirectory() as tmp:
+            good, bad = Path(tmp) / "good.SwiftJob", Path(tmp) / "bad.SwiftJob"
+            make_swiftjob(good)
+            with zipfile.ZipFile(good) as zin, zipfile.ZipFile(bad, "w") as zout:
+                for n in zin.namelist():
+                    zout.writestr(n, b"not an image" if n.endswith(".tiff") else zin.read(n))
+            store = Store(Path(tmp) / "data")
+            res = importers.import_swiftjob(_Task(), bad, store, filename="bad.SwiftJob")
+            self.assertEqual((res["pages"], res["missingImages"]), (0, ["GF POWER"]))
+            self.assertEqual(store.load(res["projectId"])["pages"], [])
 
 
 class VisionTests(unittest.TestCase):
@@ -714,9 +728,8 @@ class ArchiveTests(unittest.TestCase):
         import archive
         with tempfile.TemporaryDirectory() as tmp:
             store, pid = self._project(tmp)
-            data = archive.export_project(store, pid)
             path = Path(tmp) / "job.plancraft.zip"
-            path.write_bytes(data)
+            archive.export_project(store, pid, path)
             other = Store(Path(tmp) / "restored")
             p = archive.import_project(other, path)
             self.assertNotEqual(p["id"], pid)
@@ -737,6 +750,20 @@ class ArchiveTests(unittest.TestCase):
                 z.writestr("project.json", "{}")
             with self.assertRaises(ValueError):
                 archive.import_project(store, path)
+
+    def test_archive_with_outside_source_pdf_is_refused(self):
+        import archive
+        with tempfile.TemporaryDirectory() as tmp:
+            store, pid = self._project(tmp)
+            p = store.load(pid)
+            p["pages"][0]["src"] = {"file": "C:/Users/someone/other.pdf", "page": 0}
+            store.save(pid, p)
+            path = Path(tmp) / "job.plancraft.zip"
+            archive.export_project(store, pid, path)
+            other = Store(Path(tmp) / "restored")
+            with self.assertRaises(ValueError):
+                archive.import_project(other, path)
+            self.assertEqual(other.list(), [])      # nothing half-imported
 
 
 class DemoTests(unittest.TestCase):
@@ -967,6 +994,16 @@ class ApiTests(unittest.TestCase):
         self.assertFalse(server.same_origin(8791, "http://127.0.0.1:8792"))
         self.assertFalse(server.same_origin(8791, "https://127.0.0.1:8791"))
         self.assertFalse(server.same_origin(8791, "null"))
+
+    def test_safe_name_and_archive_download(self):
+        import server
+        self.assertEqual(server.safe_name('A/B: "C"?\tD'), "A_B_ _C_D")
+        self.assertEqual(len(server.safe_name("x" * 300)), 80)
+        st, p = self.call("POST", "/api/projects", {"name": "Zip: test"})
+        with urllib.request.urlopen(self.base + f"/api/projects/{p['id']}/archive") as r:
+            self.assertEqual(r.headers["Content-Type"], "application/zip")
+            self.assertIn("Zip_ test.plancraft.zip", unquote(r.headers["Content-Disposition"]))
+            self.assertEqual(r.read()[:2], b"PK")
 
     def test_cross_site_writes_are_refused(self):
         body = json.dumps({"name": "csrf"}).encode()
