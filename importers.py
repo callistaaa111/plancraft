@@ -445,6 +445,14 @@ def import_swiftjob(task, path: str | Path, store, name: str | None = None, file
     job = read_swiftjob(path, filename)
     name = name or Path(filename).stem
     pid = store.allocate(name or job["name"])
+    try:
+        return _import_swiftjob_pages(task, path, store, pid, name, filename, job)
+    except Exception:
+        shutil.rmtree(store.projects / pid, ignore_errors=True)   # no empty project folder left behind
+        raise
+
+
+def _import_swiftjob_pages(task, path, store, pid: str, name, filename: str, job: dict) -> dict:
     out_dir = store.projects / pid / "pages"
     pages = job["pages"]
     total = len(pages)
@@ -459,11 +467,14 @@ def import_swiftjob(task, path: str | Path, store, name: str | None = None, file
                 return page, "image missing"
             with zlock:
                 data = z.read(member)
-            with Image.open(io.BytesIO(data)) as src:
-                dpi = _dpi_of(src)
-                im, _ = _normalise(src, resize=False)
-                save_png(im, out_dir / page["image"])
-                page.update(width=im.width, height=im.height, dpi=dpi)
+            try:
+                with Image.open(io.BytesIO(data)) as src:
+                    dpi = _dpi_of(src)
+                    im, _ = _normalise(src, resize=False)
+                    save_png(im, out_dir / page["image"])
+                    page.update(width=im.width, height=im.height, dpi=dpi)
+            except Exception:              # corrupt or unsupported image: still import the other pages
+                return page, "image unreadable"
             with zlock:
                 done[0] += 1
                 task.progress(done[0], total, f"Converting page {done[0]} of {total}: {page['name']}")
