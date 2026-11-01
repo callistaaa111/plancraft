@@ -87,8 +87,12 @@ def item_quantities(item: dict, pages: dict, units: str = "m") -> dict:
     kind = item.get("type")
     props = item.get("props") or {}
     per_page: dict[str, float] = {}
-    total = perim = 0.0
+    total = perim = drops = 0.0
     unscaled = 0
+    # drop/rise per device: page ceiling height - mounting height + slack, times drops per device (project units)
+    mount = props.get("mount")
+    has_drops = kind == "count" and mount not in (None, "")
+    runs = num(props.get("drops")) or 1.0
     for sec in item.get("sections") or []:
         page = pages.get(sec.get("page"))
         if page is None:
@@ -96,6 +100,9 @@ def item_quantities(item: dict, pages: dict, units: str = "m") -> dict:
         pts = sec.get("points") or []
         if kind == "count":
             q = float(len(pts))
+            ceiling = num(page.get("ceiling"))
+            if has_drops and ceiling:
+                drops += q * (max(0.0, ceiling - num(mount)) + num(props.get("slack"))) * runs
         else:
             ppm = px_per_m(page)
             if not ppm:
@@ -124,6 +131,8 @@ def item_quantities(item: dict, pages: dict, units: str = "m") -> dict:
         d = num(props.get("depth"))
         if d:
             extra.append(("Volume", total * d * u["vol_f"], u["vol"]))
+    elif has_drops:
+        extra.append(("Drop length", drops, u["len"]))
     adjust = num(props.get("adjust"))
     if adjust:
         total += adjust

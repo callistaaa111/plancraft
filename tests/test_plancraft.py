@@ -81,6 +81,20 @@ def _item(kind, name, sections, **props):
 class MeasureTests(unittest.TestCase):
     pages = {"p1": {"id": "p1", "scale": {"pxPerM": 10}}, "p2": {"id": "p2", "scale": None}}
 
+    def test_count_drops_from_ceiling_and_mounting_height(self):
+        import pricing
+        pages = {"p1": {"id": "p1", "ceiling": 3.0}, "p2": {"id": "p2"}}
+        secs = [{"page": "p1", "points": [[0, 0], [1, 1], [2, 2]]}, {"page": "p2", "points": [[5, 5]]}]
+        it = _item("count", "OUTLET", secs, mount=0.3, slack=0.3, drops=2)
+        q = measure.item_quantities(it, pages)
+        self.assertEqual(q["qty"], 4)                                # the count itself is unchanged
+        # p1: 3 devices x (3.0 - 0.3 + 0.3) x 2 drops = 18 m; p2 has no ceiling height, so it adds none
+        [(label, value, unit)] = q["extra"]
+        self.assertEqual((label, unit), ("Drop length", "m"))
+        self.assertAlmostEqual(value, 18.0)
+        self.assertAlmostEqual(pricing.basis_value(it, q, "drop"), 18.0)   # wire for the drops, via an assembly
+        self.assertEqual(measure.item_quantities(_item("count", "X", secs), pages)["extra"], [])   # no mounting height
+
     def test_linear_length_uses_page_scale(self):
         it = _item("linear", "L", [{"page": "p1", "points": [[0, 0], [30, 40], [30, 100]]}])
         q = measure.item_quantities(it, self.pages)

@@ -66,14 +66,20 @@ export function itemQuantities(item, pagesById, units = 'm') {
   const kind = item.type;
   const props = item.props || {};
   const perPage = new Map();
-  let total = 0, perim = 0, unscaled = 0;
+  let total = 0, perim = 0, unscaled = 0, drops = 0;
+  // drop/rise per device: page ceiling height - mounting height + slack, times drops per device (project units)
+  const hasDrops = kind === 'count' && props.mount != null && props.mount !== '';
+  const runs = num(props.drops) || 1;
   for (const sec of item.sections || []) {
     const page = pagesById.get(sec.page);
     if (!page) continue;
     const pts = sec.points || [];
     let q;
-    if (kind === 'count') q = pts.length;
-    else {
+    if (kind === 'count') {
+      q = pts.length;
+      const ceiling = num(page.ceiling);
+      if (hasDrops && ceiling) drops += q * (Math.max(0, ceiling - num(props.mount)) + num(props.slack)) * runs;
+    } else {
       const ppm = pxPerM(page);
       if (!ppm) { unscaled++; const e = perPage.get(sec.page) || { qty: 0, n: 0 }; e.n++; perPage.set(sec.page, e); continue; }
       if (kind === 'linear') q = polyLength(pts) / ppm * u.perM;
@@ -97,6 +103,8 @@ export function itemQuantities(item, pagesById, units = 'm') {
     extra.push({ label: 'Perimeter', value: perim, unit: u.len });
     const d = num(props.depth);
     if (d) extra.push({ label: 'Volume', value: total * d * u.volF, unit: u.vol });
+  } else if (hasDrops) {
+    extra.push({ label: 'Drop length', value: drops, unit: u.len });
   }
   const adjust = num(props.adjust);
   if (adjust) {
