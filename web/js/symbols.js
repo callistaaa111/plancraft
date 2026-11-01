@@ -25,9 +25,10 @@ export async function openSymbolLibrary() {
   await modal({ title: 'Saved symbols', size: 'wide', body, buttons: [{ label: 'Close', value: null }] });
 }
 
-function countOnPages(symbol) {
+/** Pick pages and count a saved symbol on them; skip: pages left unticked (e.g. the one just counted). */
+export function countOnPages(symbol, skip = []) {
   const checks = S.project.pages.map(p => {
-    const cb = h('input', { type: 'checkbox', checked: true });
+    const cb = h('input', { type: 'checkbox', checked: !skip.includes(p.id) });
     return { page: p, cb, row: h('label', { class: 'inline symbol-page' }, cb, p.name || p.id) };
   });
   const body = h('div', { class: 'rev-compare' },

@@ -179,7 +179,7 @@ function takeoffMenu() {
 function chooseTool(tool) {
   if (!S.project) return;
   if (['scale', 'crop', 'autocount', 'note', 'highlight'].includes(tool) && !currentPage()) return;
-  if (tool === 'autocount' && selectedItem()?.type !== 'count') toast('Auto count: select a count item first, then drag a box around one symbol.');
+  if (tool === 'autocount' && selectedItem()?.type !== 'count') toast('Auto count: drag a box around one symbol, then name it.');
   if (tool === 'crop') toast('Drag a box around the area you want as a new page.');
   if (tool === 'takeoff' && !selectedItem()) toast('Select an item in the Takeoff list (or start one from the Takeoff button), then click on the plan.');
   setTool(tool);
