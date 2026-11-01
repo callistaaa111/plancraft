@@ -20,8 +20,8 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 if (-not $Version) {
-    $match = Select-String -Path "version.py" -Pattern '__version__\s*=\s*"([^"]+)"'
-    if (-not $match) { throw "Could not read __version__ from version.py" }
+    $match = Select-String -Path "app/version.py" -Pattern '__version__\s*=\s*"([^"]+)"'
+    if (-not $match) { throw "Could not read __version__ from app/version.py" }
     $Version = $match.Matches[0].Groups[1].Value
 }
 Write-Host "PlanCraft $Version" -ForegroundColor Cyan
