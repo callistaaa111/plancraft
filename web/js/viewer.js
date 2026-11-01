@@ -102,7 +102,7 @@ export class Viewer {
     canvas.addEventListener('pointermove', e => this.onMove(e));
     canvas.addEventListener('pointerup', e => this.onUp(e));
     canvas.addEventListener('pointercancel', e => this.onUp(e));
-    canvas.addEventListener('pointerleave', () => { this.mouse = null; this.cursorPt = null; this.snapHit = null; this.render(); });
+    canvas.addEventListener('pointerleave', () => { this.mouse = null; this.cursorPt = null; this.snapHit = null; this.renderOverlay(); });
     canvas.addEventListener('dblclick', e => this.onDbl(e));
     canvas.addEventListener('contextmenu', e => this.onContext(e));
     canvas.addEventListener('wheel', e => this.onWheel(e), { passive: false });
@@ -151,6 +151,7 @@ export class Viewer {
     this.h = Math.max(1, Math.round(r.height));
     this.canvas.width = Math.round(this.w * this.dpr);
     this.canvas.height = Math.round(this.h * this.dpr);
+    this.baseFresh = false;
     if (firstSize && this.shownPage) this.fit();
     if (this.pendingShow && this.w >= 120 && this.h >= 120) this.showPoints(this.pendingShow);
     this.renderNow();
@@ -191,8 +192,15 @@ export class Viewer {
     const k = s / v.s;
     this.view = { s, tx: sx - (sx - v.tx) * k, ty: sy - (sy - v.ty) * k };
     if (this.mouse) this.updateCursorPt();
+    this.moving();
     this.onView?.();
     this.render();
+  }
+
+  /** The view is moving: draw the plan image the fast way until it has rested for a moment, then sharp again. */
+  moving() {
+    clearTimeout(this.restTimer);
+    this.restTimer = setTimeout(() => { this.restTimer = 0; this.render(); }, 150);
   }
 
   zoomPercent() { return Math.round(this.view.s * 100); }
@@ -247,16 +255,51 @@ export class Viewer {
 
   // ---- rendering ---------------------------------------------------------------------------------------
   render() {
+    this.baseFresh = false;
+    this.renderOverlay();
+  }
+
+  /** Redraw only what follows the cursor (rubber band, snap mark, boxes): the plan and takeoff underneath are reused. */
+  renderOverlay() {
     if (this.raf) return;
     this.raf = requestAnimationFrame(() => { this.raf = 0; this.renderNow(); });
   }
 
   renderNow() {
     const ctx = this.ctx;
-    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    ctx.clearRect(0, 0, this.w, this.h);
     const page = currentPage();
-    if (!page || !S.project) return;
+    const base = this.baseCanvas;
+    if (this.baseFresh && page && base.width === this.canvas.width && base.height === this.canvas.height) {
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, base.width, base.height);
+      ctx.drawImage(base, 0, 0);
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    } else {
+      this.baseFresh = false;
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.clearRect(0, 0, this.w, this.h);
+      if (!page || !S.project) return;
+      this.drawBase(ctx, page);
+      // drawing tools redraw on every mouse move: keep this frame, so those redraws only add the cursor layer
+      if (S.tool !== 'select' && this.pulse() === 0) {
+        const b = this.baseCanvas ||= document.createElement('canvas');
+        if (b.width !== this.canvas.width || b.height !== this.canvas.height) { b.width = this.canvas.width; b.height = this.canvas.height; }
+        const bctx = b.getContext('2d');
+        bctx.clearRect(0, 0, b.width, b.height);
+        bctx.drawImage(this.canvas, 0, 0);
+        this.baseFresh = true;
+      }
+    }
+    this.drawDraft(page);
+    this.drawPick(page);
+    this.emitDraft(page);
+    this.drawCrop(page);
+    for (const x of this.ext) x.drawOver?.(ctx, page);
+    this.updateStatus(page);
+  }
+
+  /** The page, its image and the takeoff: everything that does not move with the cursor. */
+  drawBase(ctx, page) {
     const { s, tx, ty } = this.view;
     const [W, H] = this.pageSize(page);
 
@@ -279,7 +322,7 @@ export class Viewer {
       const x1 = clamp((this.w - tx) / s, 0, W), y1 = clamp((this.h - ty) / s, 0, H);
       if (x1 > x0 && y1 > y0) {
         ctx.imageSmoothingEnabled = s * this.dpr / f < 3;
-        ctx.imageSmoothingQuality = 'high';
+        ctx.imageSmoothingQuality = this.restTimer ? 'low' : 'high';   // fast while panning / zooming, sharp at rest
         ctx.drawImage(src, x0 * f, y0 * f, (x1 - x0) * f, (y1 - y0) * f, tx + x0 * s, ty + y0 * s, (x1 - x0) * s, (y1 - y0) * s);
       }
     } else {
@@ -293,12 +336,6 @@ export class Viewer {
     for (const x of this.ext) x.drawUnder?.(ctx, page);
     this.drawTakeoff(page);
     if (this.pulse() > 0) this.render(); // keep animating until the pulse fades
-    this.drawDraft(page);
-    this.drawPick(page);
-    this.emitDraft(page);
-    this.drawCrop(page);
-    for (const x of this.ext) x.drawOver?.(ctx, page);
-    this.updateStatus(page);
   }
 
   visibleSections(page) {
@@ -1095,6 +1132,7 @@ export class Viewer {
         this.view.tx = d.tx0 + (x - d.sx);
         this.view.ty = d.ty0 + (y - d.sy);
         if (this.draft) this.updateCursorPt(e);   // keep the rubber band under the cursor
+        this.moving();
         this.onView?.();
         this.render();
         return;
@@ -1142,7 +1180,7 @@ export class Viewer {
       return;
     }
     this.updateCursorPt(e);
-    this.render();
+    this.renderOverlay();
   }
 
   onUp(e) {
