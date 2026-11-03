@@ -2,6 +2,6 @@
 # takeoff app does not use.
 pymupdf>=1.28.2,<2
 pillow>=10
-openpyxl>=3.1
+openpyxl>=3.1.5
 opencv-python-headless>=4.8
 numpy>=1.24
