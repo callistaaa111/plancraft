@@ -223,9 +223,7 @@ The server listens on `127.0.0.1` only and checks the `Host` header. It has no a
 ## Roadmap
 
 The next work — revision delta reporting, a labour/quote layer, OCR and text search, and a storage/sync upgrade — is
-sketched in [docs/ROADMAP.md](docs/ROADMAP.md). Performance and security findings live in
-[docs/AUDIT.md](docs/AUDIT.md), and the comparison with other takeoff tools in
-[docs/COMPETITORS.md](docs/COMPETITORS.md), and the client-data/privacy check in [docs/PRIVACY.md](docs/PRIVACY.md).
+sketched in [docs/ROADMAP.md](docs/ROADMAP.md). The client-data/privacy check is in [docs/PRIVACY.md](docs/PRIVACY.md).
 
 ## Contributing
 
