@@ -3,6 +3,13 @@
 All notable changes to PlanCraft. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project uses [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-11-04
+
+### Changed
+
+- The license and the installer's license page name the project's GitHub account as the copyright holder. No change
+  to the app itself.
+
 ## [1.3.0] - 2026-11-01
 
 ### Added
